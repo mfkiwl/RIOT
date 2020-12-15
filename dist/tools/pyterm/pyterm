@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # Copyright (C) 2014  Oliver Hahm <oliver.hahm@inria.fr>
@@ -24,9 +24,31 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
+import cmd
+import errno
+import serial
+import socket
+import sys
+import threading
+import readline
+import time
+import logging
+import os
+import argparse
+import re
+import codecs
+import platform
 
-import cmd, serial, socket, sys, threading, readline, time, logging, \
-    os, argparse, re, codecs, signal
+try:
+    serial.Serial
+except AttributeError:
+    print("\033[1;37;41m\n")
+    print("Something went terribly wrong when loading the pyserial package.")
+    print("There is a good chance that you installed the 'serial' package instead")
+    print("of 'pyserial'. Try running 'pip uninstall serial && pip install pyserial'")
+    print("\033[0m")
+    sys.exit(1)
+
 
 # import twisted if available, define dummy classes otherwise
 try:
@@ -34,9 +56,9 @@ try:
     from twisted.internet.protocol import Protocol, \
         ReconnectingClientFactory
 except ImportError:
-    logging.getLogger("").warn("Twisted not available, please install "
-                               "it if you want to use pyterm's JSON "
-                               "capabilities")
+    logging.getLogger("").warning("Twisted not available, please install "
+                                  "it if you want to use pyterm's JSON "
+                                  "capabilities")
 
     class Protocol():
         def __init__(self):
@@ -47,28 +69,35 @@ except ImportError:
             pass
 
 # set some default options
-import platform
 defaulthostname = platform.node()
 
 # default serial port
-defaultport    = "/dev/ttyUSB0"
+defaultport = "/dev/ttyUSB0"
 
 # default baudrate for serial connection
-defaultbaud     = 115200
+defaultbaud = 115200
 
 # directory to store configuration and log files
-defaultdir      = os.environ['HOME'] + os.path.sep + '.pyterm'
+defaultdir = os.environ['HOME'] + os.path.sep + '.pyterm'
 
 # configuration file name
-defaultfile     = "pyterm-" + defaulthostname + ".conf"
+defaultfile = "pyterm-" + defaulthostname + ".conf"
 
 # logging subfolder
-defaultrunname  = "default-run"
+defaultrunname = "default-run"
 
 # default logging prefix format string
-default_fmt_str = '%(asctime)s - %(levelname)s # %(message)s'
+default_fmt_str = '%(asctime)s # %(message)s'
 
+# default newline setting
 defaultnewline = "LF"
+
+# default prompt character
+defaultprompt = '>'
+
+# repeat command on empty line instead of sending the line
+defaultrepeat_cmd_empty_line = True
+defaultreconnect = True
 
 
 class SerCmd(cmd.Cmd):
@@ -80,7 +109,10 @@ class SerCmd(cmd.Cmd):
 
     def __init__(self, port=None, baudrate=None, toggle=None, tcp_serial=None,
                  confdir=None, conffile=None, host=None, run_name=None,
-                 log_dir_name=None, newline=None):
+                 log_dir_name=None, newline=None, formatter=None,
+                 set_rts=None, set_dtr=None, serprompt=None,
+                 repeat_command_on_empty_line=defaultrepeat_cmd_empty_line,
+                 reconnect=defaultreconnect):
         """Constructor.
 
         Args:
@@ -90,7 +122,7 @@ class SerCmd(cmd.Cmd):
             confdir (str):      configuration directory
             conffile (str):     configuration file name
             host (str):         local host name
-            run_name (str):     identifier for log filer subdirectory
+            run_name (str):     identifier for log files subdirectory
 
         """
 
@@ -99,6 +131,8 @@ class SerCmd(cmd.Cmd):
         self.port = port
         self.baudrate = baudrate
         self.toggle = toggle
+        self.set_rts = set_rts
+        self.set_dtr = set_dtr
         self.tcp_serial = tcp_serial
         self.configdir = confdir
         self.configfile = conffile
@@ -106,6 +140,11 @@ class SerCmd(cmd.Cmd):
         self.run_name = run_name
         self.log_dir_name = log_dir_name
         self.newline = newline
+        self.serprompt = serprompt
+        self.repeat_command_on_empty_line = repeat_command_on_empty_line
+        self.reconnect = reconnect
+        if formatter is not None:
+            self.fmt_str = formatter
 
         if not self.host:
             self.host = defaulthostname
@@ -114,7 +153,7 @@ class SerCmd(cmd.Cmd):
             self.run_name = defaultrunname
 
         if not self.log_dir_name:
-            self.log_dir_name = self.hostname
+            self.log_dir_name = self.host
 
         if not os.path.exists(self.configdir):
             os.makedirs(self.configdir)
@@ -126,9 +165,10 @@ class SerCmd(cmd.Cmd):
         self.json_regs = dict()
         self.init_cmd = []
         self.load_config()
-        self.fmt_str = None
-        if not self.fmt_str:
+        if not hasattr(self, "fmt_str") or self.fmt_str is None:
             self.fmt_str = default_fmt_str
+        else:
+            self.fmt_str = str(self.fmt_str.replace('"', '')) + "%(message)s"
 
         # check for a history file
         try:
@@ -138,7 +178,7 @@ class SerCmd(cmd.Cmd):
 
         # create Logging object
         my_millis = "%.4f" % (time.time())
-        date_str = '%s.%s' % (time.strftime('%Y%m%d-%H:%M:%S'), my_millis[-4:])
+        date_str = '%s.%s' % (time.strftime('%Y%m%d-%H.%M.%S'), my_millis[-4:])
         self.startup = date_str
         # create formatter
         formatter = logging.Formatter(self.fmt_str)
@@ -148,7 +188,7 @@ class SerCmd(cmd.Cmd):
             os.makedirs(directory)
         logging.basicConfig(filename=directory + os.path.sep + self.run_name +
                             '.log', level=logging.DEBUG, format=self.fmt_str)
-        ch = logging.StreamHandler()
+        ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.DEBUG)
 
         # create logger
@@ -175,8 +215,8 @@ class SerCmd(cmd.Cmd):
                 host = self.tcp_serial.split(':')[0]
                 port = self.tcp_serial.split(':')[1]
             else:
-                self.logger.warn("Host name for TCP connection is "
-                                 "missing, defaulting to \"localhost\"")
+                self.logger.warning("Host name for TCP connection is "
+                                    "missing, defaulting to \"localhost\"")
                 host = "localhost"
                 port = self.tcp_serial
             self.logger.info("Connect to %s:%s"
@@ -188,12 +228,12 @@ class SerCmd(cmd.Cmd):
                     af, socktype, proto, canonname, sa = res
                     try:
                         s = fdsocket(af, socktype, proto)
-                    except socket.error as msg:
+                    except socket.error:
                         s = None
                         continue
                     try:
                         s.connect(sa)
-                    except socket.error as msg:
+                    except socket.error:
                         s.close()
                         s = None
                         continue
@@ -209,20 +249,34 @@ class SerCmd(cmd.Cmd):
                 sys.exit(1)
         # otherwise go for the serial port
         elif self.port:
+            connected = False
             self.logger.info("Connect to serial port %s" % self.port)
-            try:
-                self.serial_connect()
-            except OSError as e:
-                self.logger.error("Cannot connect to serial port {}: {}"
-                                  .format(self.port, e.strerror))
-                sys.exit(1)
+            while not connected:
+                try:
+                    self.serial_connect()
+                except serial.SerialException as e:
+                    self.logger.error("%s", e.strerror)
+                    if (not self.reconnect) or (e.errno == errno.ENOENT):
+                        sys.exit(e.errno)
+                    self.logger.info("Trying to reconnect to {} in 10 sec"
+                                     .format(self.port))
+                    time.sleep(10)
+                except OSError as e:
+                    self.logger.error("Cannot connect to serial port {}: {}"
+                                      .format(self.port, e.strerror))
+                    sys.exit(e.errno)
+                except Exception as e:
+                    self.logger.error("Unexpected exception {}".format(e))
+                    sys.exit(1)
+                else:
+                    connected = True
 
         # wait until connection is established and fire startup
         # commands to the node
         time.sleep(1)
-        for cmd in self.init_cmd:
-            self.logger.debug("WRITE ----->>>>>> '" + cmd + "'\n")
-            self.onecmd(self.precmd(cmd))
+        for command in self.init_cmd:
+            self.logger.debug("WRITE ----->>>>>> '" + command + "'\n")
+            self.onecmd(self.precmd(command))
 
         # start serial->console thread
         receiver_thread = threading.Thread(target=self.reader)
@@ -235,8 +289,18 @@ class SerCmd(cmd.Cmd):
         """
         self.logger.debug("processing line #%s#" % line)
         if (line.startswith("/")):
-                return "PYTERM_" + line[1:]
+            return "PYTERM_" + line[1:]
         return line
+
+    def emptyline(self):
+        """Either send empty line or repeat previous command.
+
+        Behavior can be configured with `repeat_command_on_empty_line`.
+        """
+        if self.repeat_command_on_empty_line:
+            super().emptyline()
+        else:
+            self.default('')
 
     def default(self, line):
         """In case of no Pyterm specific prefix is detected, split
@@ -257,11 +321,25 @@ class SerCmd(cmd.Cmd):
         """
         self.ser.write("help\n".encode("utf-8"))
 
+    def do_EOF(self, line):
+        """Handle EOF (Ctrl+D) nicely."""
+        self.logger.debug("Received EOF")
+        self.do_PYTERM_exit("")
+        sys.exit(0)
+
     def complete_date(self, text, line, begidx, endidm):
         """Auto completion for date string.
         """
         date = time.strftime("%Y-%m-%d %H:%M:%S")
         return ["%s" % (date)]
+
+    def do_PYTERM_sleep(self, line):
+        """Pyterm command: Sleep for n seconds.
+        """
+        if line:
+            time.sleep(float(line))
+        else:
+            self.logger.error("sleep: missing operand")
 
     def do_PYTERM_reset(self, line):
         """Pyterm command: Send a reset to the node.
@@ -458,8 +536,10 @@ class SerCmd(cmd.Cmd):
     def load_config(self):
         """Internal function to laod configuration from file.
         """
-        self.config = configparser.SafeConfigParser()
-        self.config.read([self.configdir + os.path.sep + self.configfile])
+        self.config = configparser.ConfigParser()
+        cf = os.path.join(self.configdir, self.configfile)
+        self.config.read(cf)
+        logging.getLogger("").info("Reading file: %s" % cf)
 
         for sec in self.config.sections():
             if sec == "filters":
@@ -487,8 +567,8 @@ class SerCmd(cmd.Cmd):
                     self.init_cmd.append(self.config.get(sec, opt))
             else:
                 for opt in self.config.options(sec):
-                    if opt not in self.__dict__:
-                        self.__dict__[opt] = self.config.get(sec, opt)
+                    if not hasattr(self, opt):
+                        setattr(self, opt, self.config.get(sec, opt))
 
     def timer_handler(self, line):
         """Handles a scheduled timer event.
@@ -571,9 +651,16 @@ class SerCmd(cmd.Cmd):
     def serial_connect(self):
         self.ser = serial.Serial(port=self.port, dsrdtr=0, rtscts=0)
         self.ser.baudrate = self.baudrate
+
         if self.toggle:
             self.ser.setDTR(0)
             self.ser.setRTS(0)
+
+        if self.set_rts == 1 or self.set_rts == 0:
+            self.ser.setRTS(self.set_rts)
+
+        if self.set_dtr == 1 or self.set_dtr == 0:
+            self.ser.setDTR(self.set_dtr)
 
     def reader(self):
         """Serial or TCP reader.
@@ -588,15 +675,19 @@ class SerCmd(cmd.Cmd):
                                                errors='replace')
                 c = sr.read(1)
             # try to re-open it with a timeout of 1s otherwise
-            except (serial.SerialException, ValueError) as se:
-                self.logger.warn("Serial port disconnected, waiting to "
-                                 "get reconnected...")
+            except (serial.SerialException, ValueError):
+                self.logger.warning("Serial port disconnected, waiting to "
+                                    "get reconnected...")
                 self.ser.close()
                 time.sleep(1)
                 if os.path.exists(self.port):
-                    self.logger.warn("Try to reconnect to %s again..."
-                                     % (self.port))
-                    self.serial_connect()
+                    self.logger.warning("Try to reconnect to %s again..."
+                                        % (self.port))
+                    try:
+                        self.serial_connect()
+                        self.logger.info("Reconnected to serial port %s" % self.port)
+                    except serial.SerialException:
+                        pass
                 continue
             if c == '\r':
                 if (self.newline == "LFCR" and nlreceived) or (self.newline == "CR"):
@@ -606,8 +697,19 @@ class SerCmd(cmd.Cmd):
                 if (self.newline == "CRLF" and crreceived) or (self.newline == "LF"):
                     self.handle_line(output)
                     output = ""
+            elif c == self.serprompt and output == "":
+                sys.stdout.write('%c ' % self.serprompt)
+                sys.stdout.flush()
             else:
                 output += c
+
+            # Hack to correctly handle reset ANSI escape code in the stream
+            # When the reset escape sequence is detected, it is written and
+            # flushed immediately to stdout
+            if output == '\033[0m':
+                sys.stdout.write(output)
+                sys.stdout.flush()
+                output = ""
 
             crreceived = c == '\r'
             nlreceived = c == '\n'
@@ -657,10 +759,6 @@ class PytermClientFactory(ReconnectingClientFactory):
                                                          reason)
 
 
-def __stop_reactor(signum, stackframe):
-    sys.stderr.write("Ctrl-C is disabled, type '/exit' instead\n")
-
-
 class fdsocket(socket.socket):
     def read(self, bufsize):
         return self.recv(bufsize)
@@ -669,10 +767,11 @@ class fdsocket(socket.socket):
         try:
             return self.sendall(string)
         except socket.error as e:
-            logging.getLogger("").warn("Error in TCP connection (%s), "
-                                       "closing down" % str(e))
+            logging.getLogger("").warning("Error in TCP connection (%s), "
+                                          "closing down" % str(e))
             self.close()
             sys.exit(0)
+
 
 if __name__ == "__main__":
 
@@ -694,6 +793,18 @@ if __name__ == "__main__":
                         action="store_true",
                         help="toggles the DTR and RTS pin of the serial line "
                         "when connecting, default is not toggling the pins")
+    parser.add_argument("-sr", "--set-rts",
+                        dest="set_rts",
+                        type=int,
+                        action="store",
+                        default=None,
+                        help="Specifies the value of RTS pin")
+    parser.add_argument("-sd", "--set-dtr",
+                        dest="set_dtr",
+                        type=int,
+                        action="store",
+                        default=None,
+                        help="Specifies the value of DTR pin")
     parser.add_argument('-d', '--directory',
                         help="Specify the Pyterm directory, default is %s"
                         % defaultdir,
@@ -702,6 +813,13 @@ if __name__ == "__main__":
                         help="Specify the config filename, default is %s"
                         % defaultfile,
                         default=defaultfile)
+    parser.add_argument("-f", "--format",
+                        help="The format prefix for output and log entries, "
+                        "default is %s"
+                        % str.replace(default_fmt_str, '%', '%%'))
+    parser.add_argument("-np", "--noprefix",
+                        action="store_true",
+                        help="Disable format prefix, raw output")
     parser.add_argument("-s", "--server",
                         help="Connect via TCP to this server to send output "
                         "as JSON")
@@ -712,28 +830,61 @@ if __name__ == "__main__":
     parser.add_argument("-rn", "--run-name",
                         help="Run name, used for logfile")
     parser.add_argument("-ln", "--log-dir-name",
-                        help="Log directory name (default is hostname e.g. "
-                        "%s/<hostname>)" % defaultdir,
-                        default=defaultdir)
+                        help="Log directory name (default is hostname + "
+                        "run-name e.g. %s/<hostname>/<run-name>)" % defaultdir)
     parser.add_argument("-nl", "--newline",
                         help="Specify the newline character(s) as a combination "
                         "of CR and LF. Examples: -nl=LF, -nl=CRLF. "
                         "(Default is %s)" % defaultnewline,
                         default=defaultnewline)
+    parser.add_argument("-pr", "--prompt",
+                        help="The expected prompt character, default is %c"
+                        % defaultprompt,
+                        default=defaultprompt)
+
+    # Keep help message in sync if changing the default
+    parser.add_argument("--repeat-command-on-empty-line",
+                        dest='repeat_command_on_empty_line',
+                        action='store_true',
+                        help="Repeat command on empty line (Default)")
+    parser.add_argument("--no-repeat-command-on-empty-line",
+                        dest='repeat_command_on_empty_line',
+                        action="store_false",
+                        help="Do not repeat command on empty line")
+    parser.add_argument("--reconnect",
+                        dest='reconnect',
+                        action='store_true',
+                        help="Try to reconnect when failing on connection "
+                             "setup (Default)")
+    parser.add_argument("--no-reconnect",
+                        dest='reconnect',
+                        action="store_false",
+                        help="Do not try to reconnect when failing on "
+                             "connection setup (Default)")
+    parser.set_defaults(
+        repeat_command_on_empty_line=defaultrepeat_cmd_empty_line,
+        reconnect=defaultreconnect)
+
     args = parser.parse_args()
 
+    if args.noprefix:
+        args.format = ""
     myshell = SerCmd(args.port, args.baudrate, args.toggle, args.tcp_serial,
                      args.directory, args.config, args.host, args.run_name,
-                     args.log_dir_name, args.newline)
+                     args.log_dir_name, args.newline, args.format,
+                     args.set_rts, args.set_dtr, args.prompt,
+                     args.repeat_command_on_empty_line)
     myshell.prompt = ''
 
-    if args.server and args.tcp_port:
-        myfactory = PytermClientFactory(myshell)
-        reactor.connectTCP(args.server, args.tcp_port, myfactory)
-        myshell.factory = myfactory
-        reactor.callInThread(myshell.cmdloop, "Welcome to pyterm!\n"
-                                              "Type '/exit' to exit.")
-        signal.signal(signal.SIGINT, __stop_reactor)
-        reactor.run()
-    else:
-        myshell.cmdloop("Welcome to pyterm!\nType '/exit' to exit.")
+    try:
+        if args.server and args.tcp_port:
+            myfactory = PytermClientFactory(myshell)
+            reactor.connectTCP(args.server, args.tcp_port, myfactory)
+            myshell.factory = myfactory
+            reactor.callInThread(myshell.cmdloop, "Welcome to pyterm!\n"
+                                                  "Type '/exit' to exit.")
+            reactor.run()
+        else:
+            myshell.cmdloop("Welcome to pyterm!\nType '/exit' to exit.")
+    except KeyboardInterrupt:
+        myshell.do_PYTERM_exit(None)

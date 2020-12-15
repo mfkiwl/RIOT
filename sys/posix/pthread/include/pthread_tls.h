@@ -15,8 +15,8 @@
  * @author      René Kijewski <rene.kijewski@fu-berlin.de>
  */
 
-#ifndef __SYS__POSIX__PTHREAD_TLS__H
-#define __SYS__POSIX__PTHREAD_TLS__H
+#ifndef PTHREAD_TLS_H
+#define PTHREAD_TLS_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,7 +57,7 @@ int pthread_setspecific(pthread_key_t key, const void *value);
 /**
  * @brief Creates a new key to be used to identify a specific tls
  * @param[out] key the created key is scribed to the given pointer
- * @param[in] destructor function pointer called when non NULL just befor the pthread exits
+ * @param[in] destructor function pointer called when non NULL just before the pthread exits
  * @return returns 0 on success, an errorcode otherwise
  */
 int pthread_key_create(pthread_key_t *key, void (*destructor)(void *));
@@ -87,5 +87,8 @@ struct __pthread_tls_datum **__pthread_get_tls_head(int self_id) PURE;
 }
 #endif
 
-#endif /* __SYS__POSIX__PTHREAD_TLS__H */
-/** @} */
+#endif /* PTHREAD_TLS_H */
+
+/**
+ * @}
+ */

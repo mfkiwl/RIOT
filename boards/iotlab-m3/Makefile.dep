@@ -1,12 +1,8 @@
-ifneq (,$(filter gnrc_netif_default,$(USEMODULE)))
-  USEMODULE += at86rf231
-  USEMODULE += gnrc_nomac
-endif
+include $(RIOTBOARD)/common/iotlab/Makefile.dep
 
 ifneq (,$(filter saul_default,$(USEMODULE)))
-  USEMODULE += saul_gpio
   USEMODULE += isl29020
   USEMODULE += lps331ap
-  USEMODULE += l3g4200d
-  USEMODULE += lsm303dlhc
 endif
+
+USEMODULE += boards_common_iotlab

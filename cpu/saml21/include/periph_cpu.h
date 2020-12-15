@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Freie Universität Berlin
+ * Copyright (C) 2015-2016 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -8,97 +8,112 @@
 
 /**
  * @ingroup         cpu_saml21
+ * @brief           CPU specific definitions for internal peripheral handling
  * @{
  *
  * @file
  * @brief           CPU specific definitions for internal peripheral handling
  *
- * @author          Hauke Petersen <hauke.peterse@fu-berlin.de>
+ * @author          Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef PERIPH_CPU_H_
-#define PERIPH_CPU_H_
+#ifndef PERIPH_CPU_H
+#define PERIPH_CPU_H
 
-#include "cpu.h"
-#include "periph/dev_enums.h"
+#include "periph_cpu_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief   Define mandatory GPIO types for NRF51822 CPUs
+ * @brief   The Low Power SRAM is not retained during deep sleep.
+ */
+#define CPU_BACKUP_RAM_NOT_RETAINED (1)
+
+/**
+ * @name    Power mode configuration
  * @{
  */
-#define HAVE_GPIO_T
-typedef uint32_t gpio_t;
+#define PM_NUM_MODES        (2)
 /** @} */
 
 /**
- * @brief   Definition of a fitting UNDEF value
- */
-#define GPIO_UNDEF          (0xffffffff)
-
-/**
- * @brief   Mandatory function for defining a GPIO pins
+ * @name   SAML21 GCLK definitions
  * @{
- */
-#define GPIO_PIN(x, y)      (((gpio_t)(&PORT->Group[x])) | y)
-
-/**
- * @brief   Available ports on the SAML21 for convenient access
  */
 enum {
-    PA = 0,                 /**< port A */
-    PB = 1,                 /**< port B */
+    SAM0_GCLK_MAIN  = 0,                 /**< Main clock */
+    SAM0_GCLK_8MHZ  = 1,                 /**< 8MHz clock */
+    SAM0_GCLK_32KHZ = 2,                 /**< 32 kHz clock */
+    SAM0_GCLK_48MHZ = 3,                 /**< 48MHz clock */
 };
+/** @} */
+
+#ifndef DOXYGEN
+#define HAVE_ADC_RES_T
+typedef enum {
+    ADC_RES_6BIT  = 0xff,                       /**< not supported */
+    ADC_RES_8BIT  = ADC_CTRLC_RESSEL_8BIT,      /**< ADC resolution: 8 bit */
+    ADC_RES_10BIT = ADC_CTRLC_RESSEL_10BIT,     /**< ADC resolution: 10 bit */
+    ADC_RES_12BIT = ADC_CTRLC_RESSEL_12BIT,     /**< ADC resolution: 12 bit */
+    ADC_RES_14BIT = 0xfe,                       /**< not supported */
+    ADC_RES_16BIT = 0xfd                        /**< not supported */
+} adc_res_t;
+/** @} */
+#endif /* ndef DOXYGEN */
 
 /**
- * @brief   Override active flank configuration values
+ * @brief   The MCU has a 12 bit DAC
+ */
+#define DAC_RES_BITS        (12)
+
+/**
+ * @brief   The MCU has two DAC outputs.
+ */
+#define DAC_NUMOF           (2)
+
+/**
+ * @name    Real time counter configuration
  * @{
  */
-#define HAVE_GPIO_FLANK_T
-typedef enum {
-    GPIO_FALLING = 2,       /**< emit interrupt on falling flank */
-    GPIO_RISING = 1,        /**< emit interrupt on rising flank */
-    GPIO_BOTH = 3           /**< emit interrupt on both flanks */
-} gpio_flank_t;
+#define RTT_MAX_VALUE       (0xffffffff)
+#define RTT_CLOCK_FREQUENCY (32768U)                      /* in Hz */
+#define RTT_MIN_FREQUENCY   (RTT_CLOCK_FREQUENCY / 512U)  /* in Hz */
+#define RTT_MAX_FREQUENCY   (RTT_CLOCK_FREQUENCY)         /* in Hz */
+/* determined by tests/ztimer_underflow */
+#define RTT_MIN_OFFSET      (8U)
 /** @} */
 
 /**
- * @brief   Available MUX values for configuring a pin's alternate function
- */
-typedef enum {
-    GPIO_MUX_A = 0x0,       /**< select peripheral function A */
-    GPIO_MUX_B = 0x1,       /**< select peripheral function B */
-    GPIO_MUX_C = 0x2,       /**< select peripheral function C */
-    GPIO_MUX_D = 0x3,       /**< select peripheral function D */
-    GPIO_MUX_E = 0x4,       /**< select peripheral function E */
-    GPIO_MUX_F = 0x5,       /**< select peripheral function F */
-    GPIO_MUX_G = 0x6,       /**< select peripheral function G */
-    GPIO_MUX_H = 0x7,       /**< select peripheral function H */
-} gpio_mux_t;
-
-/**
- * @brief   Set up alternate function (PMUX setting) for a PORT pin
- *
- * @param[in] dev   Pin to set the multiplexing for
- * @param[in] mux   Mux value
- */
-void gpio_init_mux(gpio_t dev, gpio_mux_t mux);
-
-/**
- * @brief declare needed generic SPI functions
+ * @brief   NVM User Row Mapping - Dedicated Entries
+ *          Config values will be applied at power-on.
  * @{
  */
-#define PERIPH_SPI_NEEDS_TRANSFER_BYTES
-#define PERIPH_SPI_NEEDS_TRANSFER_REG
-#define PERIPH_SPI_NEEDS_TRANSFER_REGS
+struct sam0_aux_cfg_mapping {
+    uint64_t bootloader_size            :  3; /**< BOOTPROT: Bootloader Size            */
+    uint64_t reserved_0                 :  1; /**< Factory settings - do not change.    */
+    uint64_t eeprom_size                :  3; /**< one of eight different EEPROM sizes  */
+    uint64_t reserved_1                 :  1; /**< Factory settings - do not change.    */
+    uint64_t bod33_level                :  6; /**< BOD33 threshold level at power-on.   */
+    uint64_t bod33_enable               :  1; /**< BOD33 Enable at power-on.            */
+    uint64_t bod33_action               :  2; /**< BOD33 Action at power-on.            */
+    uint64_t reserved_2                 :  9; /**< Factory settings - do not change.    */
+    uint64_t wdt_enable                 :  1; /**< WDT Enable at power-on.              */
+    uint64_t wdt_always_on              :  1; /**< WDT Always-On at power-on.           */
+    uint64_t wdt_period                 :  4; /**< WDT Period at power-on.              */
+    uint64_t wdt_window                 :  4; /**< WDT Window at power-on.              */
+    uint64_t wdt_ewoffset               :  4; /**< WDT Early Warning Interrupt Offset   */
+    uint64_t wdt_window_enable          :  1; /**< WDT Window mode enabled on power-on  */
+    uint64_t bod33_hysteresis           :  1; /**< BOD33 Hysteresis configuration       */
+    uint64_t reserved_3                 :  6; /**< Factory settings - do not change.    */
+    uint64_t nvm_locks                  : 16; /**< NVM Region Lock Bits.                */
+};
 /** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* PERIPH_CPU_H_ */
+#endif /* PERIPH_CPU_H */
 /** @} */

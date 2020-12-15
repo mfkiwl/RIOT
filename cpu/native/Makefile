@@ -2,8 +2,32 @@ MODULE = cpu
 
 DIRS += periph
 
-ifneq (,$(filter netdev2_tap,$(USEMODULE)))
-	DIRS += netdev2_tap
+ifneq (,$(filter native_vfs,$(USEMODULE)))
+  DIRS += vfs
+endif
+
+ifeq ($(OS),Darwin)
+  CFLAGS += -D_XOPEN_SOURCE=600 -D_DARWIN_C_SOURCE
+endif
+
+ifneq (,$(filter netdev_tap,$(USEMODULE)))
+  DIRS += netdev_tap
+endif
+
+ifneq (,$(filter socket_zep,$(USEMODULE)))
+  DIRS += socket_zep
+endif
+
+ifneq (,$(filter stdio_native,$(USEMODULE)))
+  DIRS += stdio_native
+endif
+
+ifneq (,$(filter mtd_native,$(USEMODULE)))
+  DIRS += mtd
+endif
+
+ifneq (,$(filter backtrace,$(USEMODULE)))
+  DIRS += backtrace
 endif
 
 include $(RIOTBASE)/Makefile.base

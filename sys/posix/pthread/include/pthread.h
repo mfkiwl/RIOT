@@ -17,12 +17,21 @@
  * @see     [The Open Group Base Specifications Issue 7: pthread.h - threads](http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/pthread.h.html)
  */
 
-#ifndef __SYS__POSIX__PTHREAD__H
-#define __SYS__POSIX__PTHREAD__H
+#ifndef PTHREAD_H
+#define PTHREAD_H
 
 #include <time.h>
 
-#include "kernel.h"
+/**
+ * @cond INTERNAL
+ */
+#ifndef __WITH_AVRLIBC__
+#define HAVE_MALLOC_H 1
+#endif
+/**
+ * @endcond
+ */
+
 #include "mutex.h"
 #include "sched.h"
 
@@ -49,7 +58,7 @@ extern "C" {
 }
 #endif
 
-#endif
+#endif /* PTHREAD_H */
 
 /**
  * @}

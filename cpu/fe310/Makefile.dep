@@ -1,0 +1,17 @@
+ifneq (,$(filter picolibc,$(FEATURES_USED)))
+  USEMODULE += picolibc
+else
+  USEMODULE += newlib_nano
+  USEMODULE += newlib_syscalls_fe310
+endif
+
+USEMODULE += sifive_drivers_fe310
+
+USEMODULE += periph
+USEMODULE += periph_pm
+
+FEATURES_REQUIRED += periph_plic
+
+ifneq (,$(filter periph_rtc,$(USEMODULE)))
+  FEATURES_REQUIRED += periph_rtt
+endif

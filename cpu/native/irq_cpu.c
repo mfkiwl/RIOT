@@ -7,8 +7,7 @@
  * General Public License v2.1. See the file LICENSE in the top level
  * directory for more details.
  *
- * @ingroup native_cpu
- * @ingroup irq
+ * @ingroup cpu_native
  * @{
  * @file
  * @author  Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
@@ -37,15 +36,14 @@
 
 #include "irq.h"
 #include "cpu.h"
-
-#include "lpm.h"
+#include "periph/pm.h"
 
 #include "native_internal.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
-volatile int native_interrupts_enabled;
+volatile int native_interrupts_enabled = 0;
 volatile int _native_in_isr;
 volatile int _native_in_syscall;
 
@@ -61,6 +59,16 @@ int _sig_pipefd[2];
 
 static _native_callback_t native_irq_handlers[255];
 char sigalt_stk[SIGSTKSZ];
+
+void *thread_isr_stack_pointer(void)
+{
+    return native_isr_context.uc_stack.ss_sp;
+}
+
+void *thread_isr_stack_start(void)
+{
+    return __isr_stack;
+}
 
 void print_thread_sigmask(ucontext_t *cp)
 {
@@ -138,25 +146,25 @@ void native_print_signals(void)
 /**
  * block signals
  */
-unsigned disableIRQ(void)
+unsigned irq_disable(void)
 {
     unsigned int prev_state;
 
     _native_syscall_enter();
-    DEBUG("disableIRQ()\n");
+    DEBUG("irq_disable()\n");
 
     if (_native_in_isr == 1) {
-        DEBUG("disableIRQ + _native_in_isr\n");
+        DEBUG("irq_disable + _native_in_isr\n");
     }
 
     if (sigprocmask(SIG_SETMASK, &_native_sig_set_dint, NULL) == -1) {
-        err(EXIT_FAILURE, "disableIRQ: sigprocmask");
+        err(EXIT_FAILURE, "irq_disable: sigprocmask");
     }
 
     prev_state = native_interrupts_enabled;
     native_interrupts_enabled = 0;
 
-    DEBUG("disableIRQ(): return\n");
+    DEBUG("irq_disable(): return\n");
     _native_syscall_leave();
 
     return prev_state;
@@ -165,20 +173,20 @@ unsigned disableIRQ(void)
 /**
  * unblock signals
  */
-unsigned enableIRQ(void)
+unsigned irq_enable(void)
 {
     unsigned int prev_state;
 
     if (_native_in_isr == 1) {
 #ifdef DEVELHELP
-        real_write(STDERR_FILENO, "enableIRQ + _native_in_isr\n", 27);
+        real_write(STDERR_FILENO, "irq_enable + _native_in_isr\n", 27);
 #else
-        DEBUG("enableIRQ + _native_in_isr\n");
+        DEBUG("irq_enable + _native_in_isr\n");
 #endif
     }
 
     _native_syscall_enter();
-    DEBUG("enableIRQ()\n");
+    DEBUG("irq_enable()\n");
 
     /* Mark the IRQ as enabled first since sigprocmask could call the handler
      * before returning to userspace.
@@ -188,40 +196,40 @@ unsigned enableIRQ(void)
     native_interrupts_enabled = 1;
 
     if (sigprocmask(SIG_SETMASK, &_native_sig_set, NULL) == -1) {
-        err(EXIT_FAILURE, "enableIRQ: sigprocmask");
+        err(EXIT_FAILURE, "irq_enable: sigprocmask");
     }
 
     _native_syscall_leave();
 
-    DEBUG("enableIRQ(): return\n");
+    DEBUG("irq_enable(): return\n");
 
     return prev_state;
 }
 
-void restoreIRQ(unsigned state)
+void irq_restore(unsigned state)
 {
-    DEBUG("restoreIRQ()\n");
+    DEBUG("irq_restore()\n");
 
     if (state == 1) {
-        enableIRQ();
+        irq_enable();
     }
     else {
-        disableIRQ();
+        irq_disable();
     }
 
     return;
 }
 
-int inISR(void)
+int irq_is_in(void)
 {
-    DEBUG("inISR: %i\n", _native_in_isr);
+    DEBUG("irq_is_in: %i\n", _native_in_isr);
     return _native_in_isr;
 }
 
 int _native_popsig(void)
 {
     int nread, nleft, i;
-    int sig;
+    int sig = 0;
 
     nleft = sizeof(int);
     i = 0;
@@ -269,6 +277,7 @@ void native_irq_handler(void)
 void isr_set_sigmask(ucontext_t *ctx)
 {
     ctx->uc_sigmask = _native_sig_set_dint;
+    native_interrupts_enabled = 0;
 }
 
 /**
@@ -289,15 +298,15 @@ void native_isr_entry(int sig, siginfo_t *info, void *context)
     if (context == NULL) {
         errx(EXIT_FAILURE, "native_isr_entry: context is null - unhandled");
     }
-    if (sched_active_thread == NULL) {
+    if (thread_get_active() == NULL) {
         _native_in_isr++;
-        warnx("native_isr_entry: sched_active_thread is null - unhandled");
+        warnx("native_isr_entry: thread_get_active() is null - unhandled");
         _native_in_isr--;
         return;
     }
 
     /* XXX: Workaround safety check - whenever this happens it really
-     * indicates a bug in disableIRQ */
+     * indicates a bug in irq_disable */
     if (native_interrupts_enabled == 0) {
         //printf("interrupts are off, but I caught a signal.\n");
         return;
@@ -313,10 +322,10 @@ void native_isr_entry(int sig, siginfo_t *info, void *context)
     }
 
     native_isr_context.uc_stack.ss_sp = __isr_stack;
-    native_isr_context.uc_stack.ss_size = SIGSTKSZ;
+    native_isr_context.uc_stack.ss_size = sizeof(__isr_stack);
     native_isr_context.uc_stack.ss_flags = 0;
     makecontext(&native_isr_context, native_irq_handler, 0);
-    _native_cur_ctx = (ucontext_t *)sched_active_thread->sp;
+    _native_cur_ctx = (ucontext_t *)thread_get_active()->sp;
 
     DEBUG("\n\n\t\tnative_isr_entry: return to _native_sig_leave_tramp\n\n");
     /* disable interrupts in context */
@@ -333,11 +342,11 @@ void native_isr_entry(int sig, siginfo_t *info, void *context)
 #elif defined(__FreeBSD__)
     _native_saved_eip = ((struct sigcontext *)context)->sc_eip;
     ((struct sigcontext *)context)->sc_eip = (unsigned int)&_native_sig_leave_tramp;
-#else
-#ifdef __arm__
+#else /* Linux */
+#if defined(__arm__)
     _native_saved_eip = ((ucontext_t *)context)->uc_mcontext.arm_pc;
     ((ucontext_t *)context)->uc_mcontext.arm_pc = (unsigned int)&_native_sig_leave_tramp;
-#else
+#else /* Linux/x86 */
     //printf("\n\033[31mEIP:\t%p\ngo switching\n\n\033[0m", (void*)((ucontext_t *)context)->uc_mcontext.gregs[REG_EIP]);
     _native_saved_eip = ((ucontext_t *)context)->uc_mcontext.gregs[REG_EIP];
     ((ucontext_t *)context)->uc_mcontext.gregs[REG_EIP] = (unsigned int)&_native_sig_leave_tramp;
@@ -356,7 +365,7 @@ void set_signal_handler(int sig, bool add)
     struct sigaction sa;
     int ret;
 
-    /* update the signal mask so enableIRQ()/disableIRQ() will be aware */
+    /* update the signal mask so irq_enable()/irq_disable() will be aware */
     if (add) {
         _native_syscall_enter();
         ret = sigdelset(&_native_sig_set, sig);
@@ -404,12 +413,12 @@ int register_interrupt(int sig, _native_callback_t handler)
 {
     DEBUG("register_interrupt\n");
 
-    unsigned state = disableIRQ();
+    unsigned state = irq_disable();
 
     native_irq_handlers[sig] = handler;
     set_signal_handler(sig, true);
 
-    restoreIRQ(state);
+    irq_restore(state);
 
     return 0;
 }
@@ -421,12 +430,12 @@ int unregister_interrupt(int sig)
 {
     DEBUG("unregister_interrupt\n");
 
-    unsigned state = disableIRQ();
+    unsigned state = irq_disable();
 
     set_signal_handler(sig, false);
     native_irq_handlers[sig] = NULL;
 
-    restoreIRQ(state);
+    irq_restore(state);
 
     return 0;
 }
@@ -437,12 +446,12 @@ static void native_shutdown(int sig, siginfo_t *info, void *context)
     (void)info;
     (void)context;
 
-    lpm_set(LPM_OFF);
+    pm_off();
 }
 
 /**
  * register internal signal handler,
- * initalize local variables
+ * initialize local variables
  *
  * TODO: see register_interrupt
  */
@@ -452,9 +461,9 @@ void native_interrupt_init(void)
     DEBUG("native_interrupt_init\n");
 
     VALGRIND_STACK_REGISTER(__isr_stack, __isr_stack + sizeof(__isr_stack));
-    VALGRIND_DEBUG("VALGRIND_STACK_REGISTER(%p, %p)\n", __isr_stack, (void*)((int)__isr_stack + sizeof(__isr_stack)));
+    VALGRIND_DEBUG("VALGRIND_STACK_REGISTER(%p, %p)\n",
+                   (void *)__isr_stack, (void*)((int)__isr_stack + sizeof(__isr_stack)));
 
-    native_interrupts_enabled = 1;
     _native_sigpend = 0;
 
     for (int i = 0; i < 255; i++) {
@@ -498,13 +507,13 @@ void native_interrupt_init(void)
     }
 
     native_isr_context.uc_stack.ss_sp = __isr_stack;
-    native_isr_context.uc_stack.ss_size = SIGSTKSZ;
+    native_isr_context.uc_stack.ss_size = sizeof(__isr_stack);
     native_isr_context.uc_stack.ss_flags = 0;
     _native_isr_ctx = &native_isr_context;
 
     static stack_t sigstk;
     sigstk.ss_sp = sigalt_stk;
-    sigstk.ss_size = SIGSTKSZ;
+    sigstk.ss_size = sizeof(__isr_stack);
     sigstk.ss_flags = 0;
 
     if (sigaltstack(&sigstk, NULL) < 0) {

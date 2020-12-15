@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2015 Eistec AB
+ * Copyright (C) 2014-2017 Eistec AB
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     board_mulle
+ * @ingroup     boards_mulle
  * @{
  *
  * @file
@@ -24,51 +24,79 @@
 #include "cpu.h"
 #include "mcg.h"
 #include "periph/gpio.h"
-#include "periph/uart.h"
 #include "periph/rtt.h"
 #include "periph/spi.h"
 #include "nvram-spi.h"
+#include "nvram.h"
 #include "xtimer.h"
+#include "vfs.h"
+#include "fs/devfs.h"
+#include "mtd_spi_nor.h"
 
 static nvram_t mulle_nvram_dev;
 nvram_t *mulle_nvram = &mulle_nvram_dev;
 static nvram_spi_params_t nvram_spi_params = {
         .spi = MULLE_NVRAM_SPI_DEV,
+        .clk = MULLE_NVRAM_SPI_CLK,
         .cs = MULLE_NVRAM_SPI_CS,
         .address_count = MULLE_NVRAM_SPI_ADDRESS_COUNT,
 };
 
-/**
- * @brief Initialize the boards on-board LEDs
- *
- * The LEDs are initialized here in order to be able to use them in the early
- * boot for diagnostics.
- *
- */
-static inline void leds_init(void);
+static devfs_t mulle_nvram_devfs = {
+    .path = "/fram0",
+    .f_op = &nvram_vfs_ops,
+    .private_data = &mulle_nvram_dev,
+};
+
+static const mtd_spi_nor_params_t mulle_nor_params = {
+    .opcode = &mtd_spi_nor_opcode_default,
+    .wait_chip_erase = 16LU * US_PER_SEC,
+    .wait_sector_erase = 10LU * US_PER_MS,
+    .wait_32k_erase = 20LU * US_PER_MS,
+    .wait_chip_wake_up = 1LU * US_PER_MS,
+    .spi = MULLE_NOR_SPI_DEV,
+    .addr_width = 3,
+    .mode = SPI_MODE_3,
+    .cs = MULLE_NOR_SPI_CS,
+    .wp = GPIO_UNDEF,
+    .hold = GPIO_UNDEF,
+    .clk = SPI_CLK_10MHZ,
+};
+
+static mtd_spi_nor_t mulle_nor_dev = {
+    .base = {
+        .driver = &mtd_spi_nor_driver,
+        .page_size = 256,
+        .pages_per_sector = 256,
+        .sector_count = 32,
+    },
+    .params = &mulle_nor_params,
+};
+
+mtd_dev_t *mtd0 = (mtd_dev_t *)&mulle_nor_dev;
+
+static devfs_t mulle_nor_devfs = {
+    .path = "/mtd0",
+    .f_op = &mtd_vfs_ops,
+    .private_data = &mulle_nor_dev,
+};
 
 /** @brief Initialize the GPIO pins controlling the power switches. */
 static inline void power_pins_init(void);
 
-/**
- * @brief Set clock prescalers to safe values
- *
- * This should be done before switching to FLL/PLL as clock source to ensure
- * that all clocks remain within the specified limits.
- */
-static inline void set_safe_clock_dividers(void);
-
-/** @brief Set the FLL source clock to RTC32k */
-static inline void set_fll_source(void);
-
 static void increase_boot_count(void);
 static int mulle_nvram_init(void);
+
+int mulle_nor_init(void);
 
 void board_init(void)
 {
     int status;
-    /* initialize the boards LEDs, this is done first for debugging purposes */
-    leds_init();
+
+    /* initialize the boards LEDs */
+    gpio_init(LED0_PIN, GPIO_OUT);
+    gpio_init(LED1_PIN, GPIO_OUT);
+    gpio_init(LED2_PIN, GPIO_OUT);
 
     /* Initialize power control pins */
     power_pins_init();
@@ -85,41 +113,8 @@ void board_init(void)
     /* Turn on AVDD for reading voltages */
     gpio_set(MULLE_POWER_AVDD);
 
-    LED_RED_ON;
-
-    /* Initialize RTC oscillator as early as possible since we are using it as a
-     * base clock for the FLL.
-     * It takes a while to stabilize the oscillator, therefore we do this as
-     * soon as possible during boot in order to let it stabilize while other
-     * stuff is initializing. */
-    /* If the clock is not stable then the UART will have the wrong baud rate
-     * for debug prints as well */
-    rtt_init();
-
-    /* Set up clocks */
-    set_safe_clock_dividers();
-
-    set_fll_source();
-
-    kinetis_mcg_set_mode(KINETIS_MCG_FEE);
-
-    /* At this point we need to wait for 1 ms until the clock is stable.
-     * Since the clock is not yet stable we can only guess how long we must
-     * wait. I have tried to make this as short as possible but still being able
-     * to read the initialization messages written on the UART.
-     * (If the clock is not stable all UART output is garbled until it has
-     * stabilized) */
-    for (int i = 0; i < 100000; ++i) {
-        asm volatile("nop\n");
-    }
-
-    /* Update SystemCoreClock global var */
-    SystemCoreClockUpdate();
-
     /* initialize the CPU */
     cpu_init();
-
-    LED_YELLOW_ON;
 
     /* NVRAM requires xtimer for timing */
     xtimer_init();
@@ -131,76 +126,18 @@ void board_init(void)
         increase_boot_count();
     }
 
-    LED_GREEN_ON;
-}
-
-/**
- * @brief Initialize the boards on-board LEDs
- *
- * The LEDs are initialized here in order to be able to use them in the early
- * boot for diagnostics.
- *
- */
-static inline void leds_init(void)
-{
-    /* The pin configuration can be found in board.h and periph_conf.h */
-    gpio_init(LED_RED_GPIO, GPIO_DIR_OUT, GPIO_NOPULL);
-    gpio_init(LED_YELLOW_GPIO, GPIO_DIR_OUT, GPIO_NOPULL);
-    gpio_init(LED_GREEN_GPIO, GPIO_DIR_OUT, GPIO_NOPULL);
+    /* Initialize NOR flash */
+    mulle_nor_init();
 }
 
 static inline void power_pins_init(void)
 {
-    gpio_init(MULLE_POWER_AVDD, GPIO_DIR_OUT, GPIO_NOPULL);
-    gpio_init(MULLE_POWER_VPERIPH, GPIO_DIR_OUT, GPIO_NOPULL);
-    gpio_init(MULLE_POWER_VSEC, GPIO_DIR_OUT, GPIO_NOPULL);
+    gpio_init(MULLE_POWER_AVDD, GPIO_OUT);
+    gpio_init(MULLE_POWER_VPERIPH, GPIO_OUT);
+    gpio_init(MULLE_POWER_VSEC, GPIO_OUT);
     gpio_clear(MULLE_POWER_AVDD);
     gpio_clear(MULLE_POWER_VPERIPH);
     gpio_clear(MULLE_POWER_VSEC);
-}
-
-static inline void set_safe_clock_dividers(void)
-{
-    /*
-     * We want to achieve the following clocks:
-     * Core/system: <100MHz
-     * Bus: <50MHz
-     * FlexBus: <50MHz
-     * Flash: <25MHz
-     *
-     * using dividers 1-2-2-4 will obey the above limits when using a 96MHz FLL source.
-     */
-    SIM->CLKDIV1 = (
-                       SIM_CLKDIV1_OUTDIV1(CONFIG_CLOCK_K60_SYS_DIV) | /* Core/System clock divider */
-                       SIM_CLKDIV1_OUTDIV2(CONFIG_CLOCK_K60_BUS_DIV) | /* Bus clock divider */
-                       SIM_CLKDIV1_OUTDIV3(CONFIG_CLOCK_K60_FB_DIV) | /* FlexBus divider, not used in Mulle */
-                       SIM_CLKDIV1_OUTDIV4(CONFIG_CLOCK_K60_FLASH_DIV)); /* Flash clock divider */
-
-}
-
-static inline void set_fll_source(void)
-{
-    /* Select FLL as source (as opposed to PLL) */
-    SIM->SOPT2 &= ~(SIM_SOPT2_PLLFLLSEL_MASK);
-    /* Use external 32kHz RTC clock as source for OSC32K */
-#if K60_CPU_REV == 1
-    SIM->SOPT1 |= SIM_SOPT1_OSC32KSEL_MASK;
-#elif K60_CPU_REV == 2
-    SIM->SOPT1 = (SIM->SOPT1 & ~(SIM_SOPT1_OSC32KSEL_MASK)) | SIM_SOPT1_OSC32KSEL(2);
-#else
-#error Unknown K60 CPU revision
-#endif
-
-    /* Select RTC 32kHz clock as reference clock for the FLL */
-#if K60_CPU_REV == 1
-    /* Rev 1 parts */
-    SIM->SOPT2 |= SIM_SOPT2_MCGCLKSEL_MASK;
-#elif K60_CPU_REV == 2
-    /* Rev 2 parts */
-    MCG->C7 = (MCG_C7_OSCSEL_MASK);
-#else
-#error Unknown K60 CPU revision
-#endif
 }
 
 static int mulle_nvram_init(void)
@@ -210,10 +147,6 @@ static int mulle_nvram_init(void)
         uint8_t  u8[sizeof(uint32_t)];
     } rec;
     rec.u32 = 0;
-
-    if (spi_init_master(MULLE_NVRAM_SPI_DEV, SPI_CONF_FIRST_RISING, SPI_SPEED_5MHZ) != 0) {
-        return -1;
-    }
 
     if (nvram_spi_init(mulle_nvram, &nvram_spi_params, MULLE_NVRAM_CAPACITY) != 0) {
         return -2;
@@ -240,7 +173,9 @@ static int mulle_nvram_init(void)
             return -5;
         }
     }
-    return 0;
+
+    /* Register DevFS node */
+    return devfs_register(&mulle_nvram_devfs);
 }
 
 static void increase_boot_count(void)
@@ -255,4 +190,16 @@ static void increase_boot_count(void)
     }
     ++rec.u32;
     mulle_nvram->write(mulle_nvram, &rec.u8[0], MULLE_NVRAM_BOOT_COUNT, sizeof(rec.u32));
+}
+
+int mulle_nor_init(void)
+{
+    int res = mtd_init(mtd0);
+
+    if (res >= 0) {
+        /* Register DevFS node */
+        res = devfs_register(&mulle_nor_devfs);
+    }
+
+    return res;
 }

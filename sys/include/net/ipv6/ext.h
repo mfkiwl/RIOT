@@ -17,11 +17,12 @@
  *
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
-#ifndef IPV6_EXT_H_
-#define IPV6_EXT_H_
+#ifndef NET_IPV6_EXT_H
+#define NET_IPV6_EXT_H
 
 #include <stdint.h>
 
+#include "net/ipv6/ext/frag.h"
 #include "net/ipv6/ext/rh.h"
 
 #ifdef __cplusplus
@@ -34,9 +35,7 @@ extern "C" {
 /**
  * @brief   IPv6 extension headers.
  *
- * @see <a href="https://tools.ietf.org/html/rfc2460#section-4">
- *          RFC 2460, section 4.1
- *      </a>
+ * @see [RFC 8200, section 4](https://tools.ietf.org/html/rfc8200#section-4)
  */
 typedef struct __attribute__((packed)) {
     uint8_t nh;     /**< next header */
@@ -60,5 +59,5 @@ static inline ipv6_ext_t *ipv6_ext_get_next(ipv6_ext_t *ext)
 }
 #endif
 
-#endif /* IPV6_EXT_H_ */
+#endif /* NET_IPV6_EXT_H */
 /** @} */

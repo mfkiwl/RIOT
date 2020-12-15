@@ -7,9 +7,7 @@
  */
 
 /**
- * @defgroup    boards_samr21-xpro Atmel SAM R21 Xplained Pro
- * @ingroup     boards
- * @brief       Support for the Atmel SAM R21 Xplained Pro board.
+ * @ingroup     boards_samr21-xpro
  * @{
  *
  * @file
@@ -17,88 +15,134 @@
  *              board
  *
  * @author      Thomas Eichinger <thomas.eichinger@fu-berlin.de>
+ * @author      Sebastian Meiling <s@mlng.net>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
 #include "cpu.h"
 #include "periph_conf.h"
 #include "periph_cpu.h"
+
+#include "edbg_eui.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * Define the nominal CPU core clock in this board
- */
-#define F_CPU               (CLOCK_CORECLOCK)
-
-/**
- * Assign the hardware timer
- */
-#define XTIMER              TIMER_1
-#define XTIMER_CHAN         (0)
-
-/**
- * @name Define UART device and baudrate for stdio
+ * @name    xtimer configuration
  * @{
  */
-#define STDIO               UART_DEV(0)
-#define STDIO_BAUDRATE      (115200U)
-#define STDIO_RX_BUFSIZE    (64U)
+#define XTIMER_DEV          TIMER_DEV(1)
+#define XTIMER_CHAN         (0)
 /** @} */
 
 /**
- * @name AT86RF233 configuration
+ * @name    ztimer configuration
+ * @{
+ */
+#define CONFIG_ZTIMER_USEC_TYPE    ZTIMER_TYPE_PERIPH_TIMER
+#define CONFIG_ZTIMER_USEC_DEV     TIMER_DEV(1)
+/* timer_set() may underflow for values smaller than 9, set 10 as margin */
+#define CONFIG_ZTIMER_USEC_MIN     (10)
+/** @} */
+
+/**
+ * @name    AT86RF233 configuration
  *
  * {spi bus, spi speed, cs pin, int pin, reset pin, sleep pin}
  */
-#define AT86RF2XX_PARAMS_BOARD      {.spi = SPI_0, \
-                                     .spi_speed = SPI_SPEED_5MHZ, \
-                                     .cs_pin = GPIO_PIN(PB, 31), \
-                                     .int_pin = GPIO_PIN(PB, 0), \
-                                     .sleep_pin = GPIO_PIN(PA, 20), \
-                                     .reset_pin = GPIO_PIN(PB, 15)}
+#define AT86RF2XX_PARAM_CS         GPIO_PIN(PB, 31)
+#define AT86RF2XX_PARAM_INT        GPIO_PIN(PB, 0)
+#define AT86RF2XX_PARAM_SLEEP      GPIO_PIN(PA, 20)
+#define AT86RF2XX_PARAM_RESET      GPIO_PIN(PB, 15)
 
 /**
- * @name LED pin definitions
+ * @brief    EDBG provides a EUI-64, the same that is printed on the board
+ */
+static inline int _edbg_get_eui64(const void *arg, eui64_t *addr)
+{
+    (void) arg;
+
+    /* EDBG can take a while to respond on cold boot */
+    unsigned tries = 10000;
+    while (--tries && edbg_get_eui64(addr)) {}
+    return tries ? 0 : -1;
+}
+
+/**
+ * @name    EUI sources on the board
+ *          EUI-64 inside EDBG for the internal radio
  * @{
  */
+#define EUI64_PROVIDER_FUNC   _edbg_get_eui64
+#define EUI64_PROVIDER_TYPE   NETDEV_AT86RF2XX
+#define EUI64_PROVIDER_INDEX  0
+/** @} */
+
+
+/**
+ * @name    LED pin definitions and handlers
+ * @{
+ */
+#define LED0_PIN            GPIO_PIN(0, 19)
+
 #define LED_PORT            PORT->Group[0]
-#define LED_PIN             (19)
-#define LED_GPIO            GPIO_PIN(0, 19)
+#define LED0_MASK           (1 << 19)
+
+#define LED0_ON             (LED_PORT.OUTCLR.reg = LED0_MASK)
+#define LED0_OFF            (LED_PORT.OUTSET.reg = LED0_MASK)
+#define LED0_TOGGLE         (LED_PORT.OUTTGL.reg = LED0_MASK)
 /** @} */
 
 /**
- * @name Macros for controlling the on-board LEDs.
+ * @name    SW0 (Button) pin definitions
  * @{
  */
-#define LED_ON              (LED_PORT.OUTCLR.reg = (1 << LED_PIN))
-#define LED_OFF             (LED_PORT.OUTSET.reg = (1 << LED_PIN))
-#define LED_TOGGLE          (LED_PORT.OUTTGL.reg = (1 << LED_PIN))
-
-/* for compatability to other boards */
-#define LED_GREEN_ON        /* not available */
-#define LED_GREEN_OFF       /* not available */
-#define LED_GREEN_TOGGLE    /* not available */
-#define LED_ORANGE_ON       /* not available */
-#define LED_ORANGE_OFF      /* not available */
-#define LED_ORANGE_TOGGLE   /* not available */
-#define LED_RED_ON          LED_ON
-#define LED_RED_OFF         LED_OFF
-#define LED_RED_TOGGLE      LED_TOGGLE
+#define BTN0_PORT           PORT->Group[0]
+#define BTN0_PIN            GPIO_PIN(0, 28)
+#define BTN0_MODE           GPIO_IN_PU
 /** @} */
 
 /**
- * @brief Initialize board specific hardware, including clock, LEDs and std-IO
+ * @name    Antenna configuration pin interface
+ * @{
+ */
+#define RFCTL1_PIN          GPIO_PIN(0, 9)
+#define RFCTL2_PIN          GPIO_PIN(0, 12)
+/** @} */
+
+/**
+ * @brief   Antenna configuration values
+ */
+enum {
+    RFCTL_ANTENNA_BOARD,
+    RFCTL_ANTENNA_EXT,
+};
+
+/**
+ * @name    Default antenna configuration
+ * @{
+ */
+#ifndef RFCTL_ANTENNA_DEFAULT
+#define RFCTL_ANTENNA_DEFAULT      RFCTL_ANTENNA_BOARD
+#endif
+/** @} */
+
+/**
+ * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
  */
 void board_init(void);
 
+/**
+ * @brief   Set antenna switch
+ */
+void board_antenna_config(uint8_t antenna);
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* BOARD_H_ */
+#endif /* BOARD_H */
 /** @} */

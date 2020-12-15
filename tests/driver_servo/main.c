@@ -30,7 +30,7 @@
 #include "periph/pwm.h"
 #include "servo.h"
 
-#define DEV         PWM_0
+#define DEV         PWM_DEV(0)
 #define CHANNEL     0
 
 #define SERVO_MIN        (1000U)
@@ -53,7 +53,7 @@ static servo_t servo;
 int main(void)
 {
     int res;
-    int pos = (STEP_LOWER_BOUND + STEP_UPPER_BOUND) / 2;
+    unsigned int pos = (STEP_LOWER_BOUND + STEP_UPPER_BOUND) / 2;
     int step = STEP;
 
     puts("\nRIOT RC servo test");

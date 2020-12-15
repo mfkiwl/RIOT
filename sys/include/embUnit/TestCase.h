@@ -32,8 +32,8 @@
  *
  * $Id: TestCase.h,v 1.7 2004/02/10 16:19:29 arms22 Exp $
  */
-#ifndef __TESTCASE_H__
-#define __TESTCASE_H__
+#ifndef EMBUNIT_TESTCASE_H
+#define EMBUNIT_TESTCASE_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,7 +44,7 @@ typedef struct __TestCase*  TestCaseRef;/*compatible embUnit1.0*/
 
 struct __TestCase {
     TestImplement* isa;
-    char *name;
+    const char *name;
     void(*setUp)(void);
     void(*tearDown)(void);
     void(*runTest)(void);
@@ -65,4 +65,4 @@ extern const TestImplement TestCaseImplement;
 }
 #endif
 
-#endif/*__TESTCASE_H__*/
+#endif /* EMBUNIT_TESTCASE_H */

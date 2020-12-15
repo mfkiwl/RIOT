@@ -1,5 +1,5 @@
 /*
- * Copyright 2008-2009, Freie Universitaet Berlin (FUB). All rights reserved.
+ * Copyright 2019 Otto-von-Guericke-Universität Magdeburg
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -7,110 +7,194 @@
  */
 
 /**
- * @ingroup ltc4150
+ * @ingroup     drivers_ltc4150
  * @{
- */
-
-/**
- * @file
- * @brief       LTC4150 Coulomb Counter
  *
- * @author      Heiko Will
- * @author      Kaspar Schleiser <kaspar@schleiser.de>
+ * @file
+ * @brief       LTC4150 Device Driver
+ * @author      Marian Buschsieweke <marian.buschsieweke@ovgu.de>
+ *
+ * @}
  */
+#include <assert.h>
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
 
-#include <xtimer.h>
-#include "ltc4150_arch.h"
+#include "ltc4150.h"
+#include "xtimer.h"
 
-static volatile unsigned long int_count;
-static unsigned int last_int_time;
-static unsigned int last_int_duration;
-static unsigned int start_time;
+#define ENABLE_DEBUG 0
+#include "debug.h"
 
-static double __attribute__((__no_instrument_function__)) int_to_coulomb(int ints)
+static void pulse_cb(void *_dev)
 {
-    return ((double)ints) / (_GFH * _R_SENSE);
-}
+    uint64_t now;
+    ltc4150_dir_t dir;
+    ltc4150_dev_t *dev = _dev;
 
-static double __attribute__((__no_instrument_function__)) coulomb_to_mA(double coulomb)
-{
-    return (coulomb * 1000) / 3600;
-}
-
-static double mAh_to_Joule(double mAh)
-{
-    return (SUPPLY_VOLTAGE * mAh * 3600);
-}
-
-uint32_t ltc4150_get_last_int_duration_us(void)
-{
-    return HWTIMER_TICKS_TO_US(last_int_duration);
-}
-
-double ltc4150_get_current_mA(void)
-{
-    return 1000000000 / (ltc4150_get_last_int_duration_us() * (_GFH * _R_SENSE));
-}
-
-double __attribute__((__no_instrument_function__)) ltc4150_get_total_mAh(void)
-{
-    return coulomb_to_mA(int_to_coulomb(int_count));
-}
-
-double ltc4150_get_total_Joule(void)
-{
-    return mAh_to_Joule(ltc4150_get_total_mAh());
-}
-
-double ltc4150_get_avg_mA(void)
-{
-    return (int_to_coulomb(int_count) * 1000000000) / HWTIMER_TICKS_TO_US(last_int_time - start_time);
-}
-
-int ltc4150_get_interval(void)
-{
-    return HWTIMER_TICKS_TO_US(last_int_time - start_time);
-}
-
-unsigned long __attribute__((__no_instrument_function__)) ltc4150_get_intcount(void)
-{
-    return int_count;
-}
-
-void ltc4150_init(void)
-{
-    ltc4150_arch_init();
-}
-
-void ltc4150_start(void)
-{
-    ltc4150_disable_int();
-    int_count = 0;
-    uint32_t now = xtimer_now();
-    ltc4150_sync_blocking();
-    start_time = now;
-    last_int_time = now;
-    ltc4150_enable_int();
-}
-
-void ltc4150_stop(void)
-{
-    ltc4150_disable_int();
-}
-
-void __attribute__((__no_instrument_function__)) ltc4150_interrupt(void)
-{
-    uint32_t now = xtimer_now();
-
-    if (now >= last_int_time) {
-        last_int_duration = now - last_int_time;
+    if ((!gpio_is_valid(dev->params.polarity)) ||
+        (!gpio_read(dev->params.polarity))
+        ) {
+        dev->discharged++;
+        dir = LTC4150_DISCHARGE;
     }
     else {
-        last_int_duration = (0 - 1) - last_int_time + now + 1;
+        dev->charged++;
+        dir = LTC4150_CHARGE;
     }
 
-    last_int_time = now;
-    int_count++;
+    now = xtimer_now_usec64();
+
+    if (dev->params.recorders) {
+        assert(dev->params.recorder_data);
+        for (unsigned i = 0; dev->params.recorders[i] != NULL; i++) {
+            dev->params.recorders[i]->pulse(dev, dir, now,
+                                            dev->params.recorder_data[i]);
+        }
+    }
+
+    dev->last_update_sec = now / US_PER_SEC;
 }
 
-/** @} */
+int ltc4150_init(ltc4150_dev_t *dev, const ltc4150_params_t *params)
+{
+    if (!dev || !params) {
+        return -EINVAL;
+    }
+
+    memset(dev, 0, sizeof(ltc4150_dev_t));
+    dev->params = *params;
+
+    if (gpio_is_valid(dev->params.shutdown)) {
+        /* Activate LTC4150 */
+        if (gpio_init(dev->params.shutdown, GPIO_OUT)) {
+            DEBUG("[ltc4150] Failed to initialize shutdown pin");
+            return -EIO;
+        }
+        gpio_set(dev->params.shutdown);
+    }
+
+    if (gpio_is_valid(dev->params.polarity)) {
+        gpio_mode_t mode = (dev->params.flags & LTC4150_POL_EXT_PULL_UP) ?
+                           GPIO_IN : GPIO_IN_PU;
+        if (gpio_init(dev->params.polarity, mode)) {
+            DEBUG("[ltc4150] Failed to initialize polarity pin");
+            return -EIO;
+        }
+    }
+
+    gpio_mode_t mode = (dev->params.flags & LTC4150_INT_EXT_PULL_UP) ?
+                       GPIO_IN : GPIO_IN_PU;
+    if (gpio_init_int(dev->params.interrupt, mode, GPIO_FALLING,
+                      pulse_cb, dev)
+        ) {
+        DEBUG("[ltc4150] Failed to initialize interrupt pin");
+        return -EIO;
+    }
+
+    ltc4150_reset_counters(dev);
+
+    DEBUG("[ltc4150] Initialized successfully");
+    return 0;
+}
+
+int ltc4150_reset_counters(ltc4150_dev_t *dev)
+{
+    uint64_t now = xtimer_now_usec64();
+
+    if (!dev) {
+        return -EINVAL;
+    }
+
+    gpio_irq_disable(dev->params.interrupt);
+
+    dev->charged = 0;
+    dev->discharged = 0;
+    dev->last_update_sec = dev->start_sec = now / US_PER_SEC;
+
+    if (dev->params.recorders) {
+        assert(dev->params.recorder_data);
+        for (unsigned i = 0; dev->params.recorders[i] != NULL; i++) {
+            dev->params.recorders[i]->reset(dev, now, dev->params.recorder_data[i]);
+        }
+    }
+
+    gpio_irq_enable(dev->params.interrupt);
+    return 0;
+}
+
+int ltc4150_shutdown(ltc4150_dev_t *dev)
+{
+    if (!dev) {
+        return -EINVAL;
+    }
+
+    gpio_irq_disable(dev->params.interrupt);
+
+    if (gpio_is_valid(dev->params.shutdown)) {
+        gpio_clear(dev->params.shutdown);
+    }
+
+    return 0;
+}
+
+void ltc4150_pulses2c(const ltc4150_dev_t *dev,
+                      uint32_t *charged, uint32_t *discharged,
+                      uint32_t raw_charged,
+                      uint32_t raw_discharged)
+{
+    uint64_t tmp;
+
+    if (charged) {
+        tmp = raw_charged;
+        tmp *= 3600000;
+        tmp += dev->params.pulses_per_ah >> 1;
+        tmp /= dev->params.pulses_per_ah;
+        *charged = tmp;
+    }
+
+    if (discharged) {
+        tmp = raw_discharged;
+        tmp *= 3600000;
+        tmp += dev->params.pulses_per_ah >> 1;
+        tmp /= dev->params.pulses_per_ah;
+        *discharged = tmp;
+    }
+}
+
+int ltc4150_charge(ltc4150_dev_t *dev, uint32_t *charged, uint32_t *discharged)
+{
+    if (!dev) {
+        return -EINVAL;
+    }
+
+    gpio_irq_disable(dev->params.interrupt);
+    ltc4150_pulses2c(dev, charged, discharged, dev->charged, dev->discharged);
+    gpio_irq_enable(dev->params.interrupt);
+    return 0;
+}
+
+int ltc4150_avg_current(ltc4150_dev_t *dev, int16_t *dest)
+{
+    int32_t duration, charged, discharged;;
+    int retval;
+
+    retval = ltc4150_charge(dev, (uint32_t *)&charged, (uint32_t *)&discharged);
+    if (retval) {
+        return retval;
+    }
+
+    duration = dev->last_update_sec - dev->start_sec;
+    if (!duration) {
+        /* Called before one second of date or one pulse acquired. Prevent
+         * division by zero by returning -EAGAIN.
+         */
+        return -EAGAIN;
+    }
+
+    /* From millicoloumb (=mAs) to E-01 mA */
+    *dest = ((discharged - charged) * 10) / duration;
+
+    return 0;
+}

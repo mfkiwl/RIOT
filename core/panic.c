@@ -25,14 +25,22 @@
 #include <stdio.h>
 
 #include "assert.h"
+#include "kernel_defines.h"
 #include "cpu.h"
 #include "irq.h"
-#include "lpm.h"
 #include "panic.h"
-#include "arch/panic_arch.h"
+#include "periph/pm.h"
+#include "log.h"
 
 #if defined(DEVELHELP) && defined(MODULE_PS)
 #include "ps.h"
+#endif
+
+/* If a device is flashed over USB bootloader, try to launch
+ * the bootloader again on crash so the user can re-flash it.
+ */
+#if defined(DEVELHELP) && defined(MODULE_USB_BOARD_RESET)
+#include "usb_board_reset.h"
 #endif
 
 const char assert_crash_message[] = "FAILED ASSERTION.";
@@ -40,10 +48,19 @@ const char assert_crash_message[] = "FAILED ASSERTION.";
 /* flag preventing "recursive crash printing loop" */
 static int crashed = 0;
 
+void __attribute__((weak)) panic_arch(void) {}
+void __attribute__((weak)) panic_app(core_panic_t crash_code, const char *message)
+{
+    (void)crash_code;
+    (void)message;
+}
+
 /* WARNING: this function NEVER returns! */
 NORETURN void core_panic(core_panic_t crash_code, const char *message)
 {
-    (void) crash_code;
+#ifdef NDEBUG
+    (void)crash_code;
+#endif
 
     if (crashed == 0) {
         /* print panic message to console (if possible) */
@@ -53,27 +70,35 @@ NORETURN void core_panic(core_panic_t crash_code, const char *message)
             cpu_print_last_instruction();
         }
 #endif
-        puts("*** RIOT kernel panic:");
-        puts(message);
-        puts("");
+        /* Call back app in case it wants to store some context */
+        panic_app(crash_code, message);
+        LOG_ERROR("*** RIOT kernel panic:\n%s\n\n", message);
 #ifdef DEVELHELP
 #ifdef MODULE_PS
         ps();
-        puts("");
+        LOG_ERROR("\n");
 #endif
 
-        puts("*** halted.\n");
+        LOG_ERROR("*** halted.\n\n");
 #else
-        puts("*** rebooting...\n\n");
+        LOG_ERROR("*** rebooting...\n\n");
 #endif
     }
     /* disable watchdog and all possible sources of interrupts */
-    disableIRQ();
+    irq_disable();
     panic_arch();
 #ifndef DEVELHELP
     /* DEVELHELP not set => reboot system */
-    (void) reboot(RB_AUTOBOOT);
+    pm_reboot();
+#else
+    /* DEVELHELP set => power off system */
+    /*               or start bootloader */
+#ifdef MODULE_USB_BOARD_RESET
+    usb_board_reset_in_bootloader();
+#else
+    pm_off();
 #endif
+#endif /* DEVELHELP */
 
     /* tell the compiler that we won't return from this function
        (even if we actually won't even get here...) */

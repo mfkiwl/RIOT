@@ -18,8 +18,8 @@
  * @brief       Utility library for comparing and computing timestamps
  */
 
-#ifndef __TIMEX_H
-#define __TIMEX_H
+#ifndef TIMEX_H
+#define TIMEX_H
 
 #include <stdint.h>
 #include <inttypes.h>
@@ -31,22 +31,42 @@ extern "C" {
 /**
  * @brief The number of microseconds per second
  */
-#define SEC_IN_USEC (1000000U)
+#define US_PER_SEC          (1000000LU)
+
+/**
+ * @brief The number of seconds per minute
+ */
+#define SEC_PER_MIN         (60LU)
+
+/**
+ * @brief The number of centiseconds per second
+ */
+#define CS_PER_SEC          (100LU)
 
 /**
  * @brief The number of milliseconds per second
  */
-#define SEC_IN_MS   (1000U)
+#define MS_PER_SEC          (1000LU)
 
 /**
  * @brief The number of microseconds per millisecond
  */
-#define MS_IN_USEC  (1000U)
+#define US_PER_MS           (1000LU)
+
+/**
+ * @brief The number of microseconds per centisecond
+ */
+#define US_PER_CS  (10000U)
 
 /**
  * @brief The number of nanoseconds per microsecond
  */
-#define USEC_IN_NS  (1000)
+#define NS_PER_US           (1000LU)
+
+/**
+ * @brief The number of nanoseconds per second
+ */
+#define NS_PER_SEC  (1000000000LLU)
 
 /**
  * @brief The maximum length of the string representation of a timex timestamp
@@ -79,7 +99,6 @@ typedef struct {
  *
  * @return The sum of the two timestamps
  */
-/* cppcheck-suppress passedByValue */
 timex_t timex_add(const timex_t a, const timex_t b);
 
 /**
@@ -90,7 +109,6 @@ timex_t timex_add(const timex_t a, const timex_t b);
  *
  * @return The difference a - b
  */
-/* cppcheck-suppress passedByValue */
 timex_t timex_sub(const timex_t a, const timex_t b);
 
 /**
@@ -113,7 +131,6 @@ timex_t timex_set(uint32_t seconds, uint32_t microseconds);
  * @return 0 if equal
  * @return 1 if a is bigger
  */
-/* cppcheck-suppress passedByValue */
 int timex_cmp(const timex_t a, const timex_t b);
 
 /**
@@ -123,8 +140,8 @@ int timex_cmp(const timex_t a, const timex_t b);
  */
 static inline void timex_normalize(timex_t *time)
 {
-    time->seconds += (time->microseconds / SEC_IN_USEC);
-    time->microseconds %= SEC_IN_USEC;
+    time->seconds += (time->microseconds / US_PER_SEC);
+    time->microseconds %= US_PER_SEC;
 }
 
 /**
@@ -137,7 +154,7 @@ static inline void timex_normalize(timex_t *time)
  */
 static inline int timex_isnormalized(const timex_t *time)
 {
-    return (time->microseconds < SEC_IN_USEC);
+    return (time->microseconds < US_PER_SEC);
 }
 
 /**
@@ -147,10 +164,9 @@ static inline int timex_isnormalized(const timex_t *time)
  *
  * @return timex representation as uint64_t
  */
-/* cppcheck-suppress passedByValue */
 static inline uint64_t timex_uint64(const timex_t a)
 {
-    return (uint64_t) a.seconds * SEC_IN_USEC + a.microseconds;
+    return (uint64_t) a.seconds * US_PER_SEC + a.microseconds;
 }
 
 /**
@@ -162,7 +178,7 @@ static inline uint64_t timex_uint64(const timex_t a)
  */
 static inline timex_t timex_from_uint64(const uint64_t timestamp)
 {
-    return timex_set(timestamp / SEC_IN_USEC, timestamp % SEC_IN_USEC);
+    return timex_set(timestamp / US_PER_SEC, timestamp % US_PER_SEC);
 }
 
 /**
@@ -184,4 +200,4 @@ const char *timex_to_str(timex_t t, char *timestamp);
 #endif
 
 /** @} */
-#endif /* __TIMEX_H */
+#endif /* TIMEX_H */

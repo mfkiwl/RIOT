@@ -8,7 +8,7 @@
  */
 
 /**
- * @defgroup    driver_srf02 SRF02
+ * @defgroup    drivers_srf02 SRF02 ultrasonic range sensor
  * @ingroup     drivers_sensors
  * @brief       Driver for the SRF02 ultrasonic range sensor
  * @{
@@ -19,10 +19,11 @@
  * @author      Zakaria Kasmi <zkasmi@inf.fu-berlin.de>
  * @author      Peter Kietzmann <peter.kietzmann@haw-hamburg.de>
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
+ * @author      Kevin Weiss <kevin.weiss@haw-hamburg.de>
  */
 
-#ifndef SRF02_H_
-#define SRF02_H_
+#ifndef SRF02_H
+#define SRF02_H
 
 #include <stdint.h>
 #include "periph/i2c.h"
@@ -34,7 +35,12 @@ extern "C" {
 /**
  * @brief   Default I2C address of SRF02 sensors
  */
-#define SRF02_DEFAULT_ADDR                  112
+#define SRF02_DEFAULT_ADDR      (0xe0)      /* 224 decimal */
+
+/**
+ * @brief   The datasheet tells us, that ranging takes 70ms
+ */
+#define SRF02_RANGE_DELAY       (70000U)
 
 /**
  * @brief   Device descriptor for SRF02 sensors
@@ -69,10 +75,40 @@ typedef enum {
 int srf02_init(srf02_t *dev, i2c_t i2c, uint8_t addr);
 
 /**
- * @brief   Get the distance measured from the SRF02 ultrasonic sensor
+ * @brief   Trigger a new measurement
+ *
+ * This function triggers a new ranging operation. After triggering this
+ * operation, you have to wait at least 70ms for the result to be ready.
  *
  * The result of the ranging operation is returned in inches, centimeters or
  * microseconds - depending on the given @p mode parameter.
+ *
+ * @param[in] dev           device to trigger
+ * @param[in] mode          there are three real ranging modes, which return
+ *                          the result in inches, centimeters or microseconds.
+ *                          Another set of three fake ranging modes do the same
+ *                          but without transmitting the burst
+ *
+ * @return  0 On success, otherwise i2c_write error
+ *
+ */
+int srf02_trigger(const srf02_t *dev, srf02_mode_t mode);
+
+/**
+ * @brief    Read the results of the last ranging operation
+ *
+ * @param[in] dev           device to read from
+ *
+ * @return  result of the last ranging operation, meaning depends on the mode
+ *          parameter given to the srf02_trigger function
+ */
+uint16_t srf02_read(const srf02_t *dev);
+
+/**
+ * @brief   Get the distance measured from the SRF02 ultrasonic sensor
+ *
+ * This function combines the srf02_trigger and the srf02_read functions for
+ * simplified usage in simple (single sensor) setups.
  *
  * @param[in] dev           device descriptor of an SRF02 sensor
  * @param[in] mode          there are three real ranging modes, which return
@@ -83,11 +119,22 @@ int srf02_init(srf02_t *dev, i2c_t i2c, uint8_t addr);
  * @return  the ranging result in inches, centimeters or microseconds
  *
  */
-uint16_t srf02_get_distance(srf02_t *dev, srf02_mode_t mode);
+uint16_t srf02_get_distance(const srf02_t *dev, srf02_mode_t mode);
+
+/**
+ * @brief   Program the given device with a new bus address
+ *
+ * @param[in] dev           device to program
+ * @param[in] new_addr      new address to program the given device to
+ *
+ * @return  0 On success, otherwise i2c_write error
+ *
+ */
+int srf02_set_addr(srf02_t *dev, uint8_t new_addr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* SRF02_H_ */
+#endif /* SRF02_H */
 /** @} */

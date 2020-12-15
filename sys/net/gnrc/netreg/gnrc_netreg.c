@@ -15,7 +15,8 @@
 #include <errno.h>
 #include <string.h>
 
-#include "clist.h"
+#include "assert.h"
+#include "log.h"
 #include "utlist.h"
 #include "net/gnrc/netreg.h"
 #include "net/gnrc/nettype.h"
@@ -23,6 +24,9 @@
 #include "net/gnrc/icmpv6.h"
 #include "net/gnrc/ipv6.h"
 #include "net/gnrc/udp.h"
+#ifdef MODULE_GNRC_TCP
+#include "net/gnrc/tcp.h"
+#endif
 
 #define _INVALID_TYPE(type) (((type) < GNRC_NETTYPE_UNDEF) || ((type) >= GNRC_NETTYPE_NUMOF))
 
@@ -37,8 +41,21 @@ void gnrc_netreg_init(void)
 
 int gnrc_netreg_register(gnrc_nettype_t type, gnrc_netreg_entry_t *entry)
 {
+#if DEVELHELP
+# if defined(MODULE_GNRC_NETAPI_MBOX) || defined(MODULE_GNRC_NETAPI_CALLBACKS)
+    bool has_msg_q = (entry->type != GNRC_NETREG_TYPE_DEFAULT) ||
+                     thread_has_msg_queue(thread_get(entry->target.pid));
+# else
+    bool has_msg_q = thread_has_msg_queue(thread_get(entry->target.pid));
+# endif
+
     /* only threads with a message queue are allowed to register at gnrc */
-    assert(sched_threads[entry->pid]->msg_array);
+    if (!has_msg_q) {
+        LOG_ERROR("\n!!!! gnrc_netreg: initialize message queue of thread %u "
+                  "using msg_init_queue() !!!!\n\n", entry->target.pid);
+    }
+    assert(has_msg_q);
+#endif /* DEVELHELP */
 
     if (_INVALID_TYPE(type)) {
         return -EINVAL;
@@ -58,54 +75,51 @@ void gnrc_netreg_unregister(gnrc_nettype_t type, gnrc_netreg_entry_t *entry)
     LL_DELETE(netreg[type], entry);
 }
 
-gnrc_netreg_entry_t *gnrc_netreg_lookup(gnrc_nettype_t type, uint32_t demux_ctx)
+/**
+ * @brief   Searches the next entry in the registry that matches given
+ *          parameters, start lookup from beginning or given entry.
+ *
+ * @param[in] from      A registry entry to lookup from or NULL to start fresh
+ * @param[in] type      Type of the protocol.
+ * @param[in] demux_ctx The demultiplexing context for the registered thread.
+ *                      See gnrc_netreg_entry_t::demux_ctx.
+ *
+ * @return  The first entry fitting the given parameters on success
+ * @return  NULL if no entry can be found.
+ */
+static gnrc_netreg_entry_t *_netreg_lookup(gnrc_netreg_entry_t *from,
+                                           gnrc_nettype_t type,
+                                           uint32_t demux_ctx)
 {
-    gnrc_netreg_entry_t *res;
+    gnrc_netreg_entry_t *res = NULL;
 
-    if (_INVALID_TYPE(type)) {
-        return NULL;
+    if (from || !_INVALID_TYPE(type)) {
+        gnrc_netreg_entry_t *head = (from) ? from->next : netreg[type];
+        LL_SEARCH_SCALAR(head, res, demux_ctx, demux_ctx);
     }
 
-    LL_SEARCH_SCALAR(netreg[type], res, demux_ctx, demux_ctx);
-
     return res;
+}
+
+gnrc_netreg_entry_t *gnrc_netreg_lookup(gnrc_nettype_t type, uint32_t demux_ctx)
+{
+    return _netreg_lookup(NULL, type, demux_ctx);
 }
 
 int gnrc_netreg_num(gnrc_nettype_t type, uint32_t demux_ctx)
 {
     int num = 0;
-    gnrc_netreg_entry_t *entry;
+    gnrc_netreg_entry_t *entry = NULL;
 
-    if (_INVALID_TYPE(type)) {
-        return 0;
+    while((entry = _netreg_lookup(entry, type, demux_ctx)) != NULL) {
+        num++;
     }
-
-    entry = netreg[type];
-
-    while (entry != NULL) {
-        if (entry->demux_ctx == demux_ctx) {
-            num++;
-        }
-
-        entry = entry->next;
-    }
-
     return num;
 }
 
 gnrc_netreg_entry_t *gnrc_netreg_getnext(gnrc_netreg_entry_t *entry)
 {
-    uint32_t demux_ctx;
-
-    if (entry == NULL) {
-        return NULL;
-    }
-
-    demux_ctx = entry->demux_ctx;
-
-    LL_SEARCH_SCALAR(entry->next, entry, demux_ctx, demux_ctx);
-
-    return entry;
+    return (entry ? _netreg_lookup(entry, 0, entry->demux_ctx) : NULL);
 }
 
 int gnrc_netreg_calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr)
@@ -132,37 +146,6 @@ int gnrc_netreg_calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr)
 #endif
         default:
             return -ENOENT;
-    }
-}
-
-gnrc_pktsnip_t *gnrc_netreg_hdr_build(gnrc_nettype_t type, gnrc_pktsnip_t *payload,
-                                      uint8_t *src, uint8_t src_len,
-                                      uint8_t *dst, uint8_t dst_len)
-{
-    switch (type) {
-#ifdef MODULE_GNRC_IPV6
-
-        case GNRC_NETTYPE_IPV6:
-            return gnrc_ipv6_hdr_build(payload, src, src_len, dst, dst_len);
-#endif
-#ifdef MODULE_GNRC_TCP
-
-        case GNRC_NETTYPE_TCP:
-            return gnrc_tcp_hdr_build(payload, src, src_len, dst, dst_len);
-#endif
-#ifdef MODULE_GNRC_UDP
-
-        case GNRC_NETTYPE_UDP:
-            return gnrc_udp_hdr_build(payload, src, src_len, dst, dst_len);
-#endif
-
-        default:
-            (void)payload;
-            (void)src;
-            (void)src_len;
-            (void)dst;
-            (void)dst_len;
-            return NULL;
     }
 }
 

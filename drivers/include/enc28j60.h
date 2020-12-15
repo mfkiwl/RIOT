@@ -7,8 +7,8 @@
  */
 
 /**
- * @defgroup    driver_enc28j60 ENC28J60
- * @ingroup     drivers
+ * @defgroup    drivers_enc28j60 ENC28J60
+ * @ingroup     drivers_netdev
  * @brief       Driver for the ENC28J60 Ethernet Adapter
  * @{
  *
@@ -26,20 +26,11 @@
 #include "mutex.h"
 #include "periph/spi.h"
 #include "periph/gpio.h"
-#include "net/netdev2.h"
+#include "net/netdev.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief   Fallback MAC address in case CPUID is not available
- *
- * The enc28j60 does not provide a globally unique, pre-set MAC address, so we
- * need to create one. For this the CPUID module is used to create a locally
- * administered MAC. If this is not available, we use the MAC address below.
- */
-#define ENC28J60_FALLBACK_MAC       {0x02, 0x22, 0x33, 0x44, 0x55, 0x66}
 
 /**
  * @brief   Struct containing the needed peripheral configuration
@@ -48,29 +39,28 @@ typedef struct {
     spi_t spi;              /**< If I drink */
     gpio_t cs_pin;          /**< beer in the evening, */
     gpio_t int_pin;         /**< I will be most certainly */
-    gpio_t reset_pin;       /**< drunk in the morning?! */
+    gpio_t rst_pin;         /**< drunk in the morning?! */
 } enc28j60_params_t;
 
 /**
  * @brief   ENC28J60 device descriptor
  */
 typedef struct {
-    netdev2_t netdev;       /**< pull in the netdev2 fields */
-    spi_t spi;              /**< SPI bus the transceiver is connected to */
-    gpio_t cs_pin;          /**< pin connected to the CHIP SELECT line */
-    gpio_t int_pin;         /**< pin connected to the INT line */
-    gpio_t reset_pin;       /**< pin connected to the RESET line */
-    mutex_t devlock;        /**< lock the device on access */
-    int8_t bank;            /**< remember the active register bank */
+    netdev_t netdev;        /**< pull in the netdev fields */
+    enc28j60_params_t p;    /**< SPI and pin confiuration */
+    mutex_t lock;           /**< lock the device on access */
+    uint32_t tx_time;       /**< last transmission time for timeout handling */
 } enc28j60_t;
 
 /**
- * @brief   Ready the device for initialization through it's netdev2 interface
+ * @brief   Ready the device for initialization through it's netdev interface
  *
  * @param[in] dev           device descriptor
  * @param[in] params        peripheral configuration to use
+ * @param[in]   index       Index of @p params in a global parameter struct array.
+ *                          If initialized manually, pass a unique identifier instead.
  */
-void enc28j60_setup(enc28j60_t *dev, const enc28j60_params_t *params);
+void enc28j60_setup(enc28j60_t *dev, const enc28j60_params_t *params, uint8_t index);
 
 #ifdef __cplusplus
 }

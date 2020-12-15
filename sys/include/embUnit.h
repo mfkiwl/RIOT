@@ -9,17 +9,20 @@
 /**
  * @defgroup unittests Unittests
  * @ingroup  sys
+ * @brief RIOT Unittests based on the EmbUnit Framework
  *
- * @note
- * Please refer to https://github.com/RIOT-OS/RIOT/wiki/Testing-RIOT
+ * @see https://sourceforge.net/projects/embunit
+ *
+ * @note Please refer to https://github.com/RIOT-OS/RIOT/wiki/Testing-RIOT
  *
  * @author Martine Lenders <mlenders@inf.fu-berlin.de>
  */
 
-#ifndef __SYS__EMB_UNIT__H
-#define __SYS__EMB_UNIT__H
+#ifndef EMBUNIT_H
+#define EMBUNIT_H
 
 #include "embUnit/embUnit.h"
+#include "kernel_defines.h"
 
 #ifdef OUTPUT
 #   define OUTPUT_XML       (1)
@@ -64,4 +67,4 @@ extern "C" {
 }
 #endif
 
-#endif
+#endif /* EMBUNIT_H */

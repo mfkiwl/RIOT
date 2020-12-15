@@ -1,5 +1,7 @@
 /*
- * Copyright 2015 Ludwig Knüpfer, Christian Mehlis
+ * Copyright 2015 Ludwig Knüpfer,
+ *           2015 Christian Mehlis
+ *           2016-2017 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -9,8 +11,11 @@
 /**
  * @defgroup    drivers_dht DHT Family of Humidity and Temperature Sensors
  * @ingroup     drivers_sensors
+ * @ingroup     drivers_saul
  * @brief       Device driver for the DHT Family of humidity
  *              and temperature sensors
+ *
+ * This driver provides @ref drivers_saul capabilities.
  *
  * @{
  *
@@ -20,6 +25,7 @@
  *
  * @author      Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de
  * @author      Christian Mehlis <mehlis@inf.fu-berlin.de>
+ * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
 #ifndef DHT_H
@@ -34,7 +40,17 @@ extern "C" {
 #endif
 
 /**
- * @brief data type for storing DHT sensor readings
+ * @brief   Possible return codes
+ */
+enum {
+    DHT_OK      =  0,       /**< all good */
+    DHT_NOCSUM  = -1,       /**< checksum error */
+    DHT_TIMEOUT = -2,       /**< communication timed out */
+    DHT_NODEV   = -3        /**< device type not defined */
+};
+
+/**
+ * @brief   Data type for storing DHT sensor readings
  */
 typedef struct {
     uint16_t humidity;      /**< relative deca-humidity */
@@ -42,7 +58,7 @@ typedef struct {
 } dht_data_t;
 
 /**
- * @brief device type of the DHT device
+ * @brief   Device type of the DHT device
  */
 typedef enum {
     DHT11,                  /**< DHT11 device identifier */
@@ -51,60 +67,52 @@ typedef enum {
 } dht_type_t;
 
 /**
- * @brief device descriptor for DHT sensor devices
+ * @brief   Configuration parameters for DHT devices
  */
 typedef struct {
-    gpio_t gpio;            /**< GPIO pin of the device's data pin */
+    gpio_t pin;             /**< GPIO pin of the device's data pin */
     dht_type_t type;        /**< type of the DHT device */
+    gpio_mode_t in_mode;    /**< input pin configuration, with or without pull
+                             *   resistor */
+
+} dht_params_t;
+
+/**
+ * @brief   Device descriptor for DHT sensor devices
+ */
+typedef struct {
+    dht_params_t params;    /**< Device parameters */
+    dht_data_t last_val;    /**< Values of the last measurement */
+    uint32_t last_read_us;  /**< Time of the last measurement */
 } dht_t;
 
 /**
- * @brief initialize a new DHT device
+ * @brief   Initialize a new DHT device
  *
- * @param[in] dev       device descriptor of a DHT device
- * @param[in] type      type of the DHT device
- * @param[in] gpio      GPIO pin the device's data pin is connected to
- *
- * @return              0 on success
- * @return              -1 on error
- */
-int dht_init(dht_t *dev, dht_type_t type, gpio_t gpio);
-
- /**
- * @brief   read sensor data from device
- *
- * @param[in]  dev      device descriptor of a DHT device
- * @param[out] relhum   pointer to relative humidity in g/m^3
- * @param[out] temp     pointer to temperature in degrees Celsius
+ * @param[out] dev      device descriptor of a DHT device
+ * @param[in]  params   configuration parameters
  *
  * @return              0 on success
  * @return              -1 on error
  */
-int dht_read(dht_t *dev, float *relhum, float *temp);
-
- /**
- * @brief   read sensor data from device
- *
- * @note    When reading fails and the function indicates an error,
- *          data will contain garbage.
- *
- * @param[in] dev       device descriptor of a DHT device
- * @param[in] data      pointer to DHT data object
- *
- * @return              0 on success
- * @return              -1 on checksum error
- */
-int dht_read_raw(dht_t *dev, dht_data_t *data);
+int dht_init(dht_t *dev, const dht_params_t *params);
 
 /**
- * @brief   parse raw sensor data into relative humidity and Celsius
+ * @brief   get a new temperature and humidity value from the device
  *
- * @param[in]   dev     device descriptor of a DHT device
- * @param[in]   data    sensor data
- * @param[out]  relhum  pointer to relative humidity in g/m^3
- * @param[out]  temp    pointer to temperature in degrees Celsius
+ * @note    if reading fails or checksum is invalid, no new values will be
+ *          written into the result values
+ *
+ * @param[in]  dev      device descriptor of a DHT device
+ * @param[out] temp     temperature value [in °C * 10^-1]
+ * @param[out] hum      relative humidity value [in percent * 10^-1]
+ *
+ * @retval DHT_OK       Success
+ * @retval DHT_NOCSUM   Checksum error
+ * @retval DHT_TIMEOUT  Reading data timed out (check wires!)
+ * @retval DHT_NODEV    Unsupported device type specified
  */
-void dht_parse(dht_t *dev, dht_data_t *data, float *relhum, float *temp);
+int dht_read(dht_t *dev, int16_t *temp, int16_t *hum);
 
 #ifdef __cplusplus
 }

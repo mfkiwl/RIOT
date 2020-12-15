@@ -8,7 +8,7 @@
 
 /**
  * @defgroup    drivers_nvram Non-volatile RAM
- * @ingroup     drivers
+ * @ingroup     drivers_storage
  * @brief       Non-volatile RAM interface
  *
  * This API is designed around non-volatile memories which do not need blockwise
@@ -24,11 +24,15 @@
  * @author      Joakim Nohlgård <joakim.nohlgard@eistec.se>
  */
 
-#ifndef DRIVERS_NVRAM_H_
-#define DRIVERS_NVRAM_H_
+#ifndef NVRAM_H
+#define NVRAM_H
 
 #include <stdint.h>
 #include <stddef.h>
+
+#if MODULE_VFS
+#include "vfs.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,11 +43,11 @@ extern "C" {
 struct nvram;
 
 /**
- * @brief Device descriptor for generic NVRAM devices.
+ * @brief   Device descriptor for generic NVRAM devices.
  */
 typedef struct nvram {
     /**
-     * @brief Pointer to device-specific read function
+     * @brief   Pointer to device-specific read function
      *
      * Copy data from system memory to NVRAM.
      *
@@ -58,7 +62,7 @@ typedef struct nvram {
     int (*read)(struct nvram *dev, uint8_t *dst, uint32_t src, size_t size);
 
     /**
-     * @brief Pointer to device-specific write function
+     * @brief   Pointer to device-specific write function
      *
      * Copy data from NVRAM to system memory.
      *
@@ -70,18 +74,22 @@ typedef struct nvram {
      * @return           Number of bytes written on success
      * @return           <0 on errors
      */
-    int (*write)(struct nvram *dev, uint8_t *src, uint32_t dst, size_t size);
+    int (*write)(struct nvram *dev, const uint8_t *src, uint32_t dst, size_t size);
 
-    /** @brief Device capacity */
+    /** @brief   Device capacity */
     size_t size;
 
-    /** @brief Device-specific parameters, if any. */
+    /** @brief   Device-specific parameters, if any. */
     void *extra;
 } nvram_t;
+
+#if MODULE_VFS
+extern const vfs_file_ops_t nvram_vfs_ops;
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* DRIVERS_NVRAM_H_ */
+#endif /* NVRAM_H */
 /** @} */

@@ -1,38 +1,11 @@
 PKG_NAME=wakaama
-PKG_URL=git://github.com/eclipse/wakaama.git
-PKG_VERSION=69a32cfae39f66fe4eec4cc8d1cd48ced7ad447c
-PKG_DIR=$(CURDIR)/$(PKG_NAME)
-PKG_TEMP_DIR=$(CURDIR)/temp
+PKG_URL=https://github.com/eclipse/wakaama.git
+PKG_VERSION=da74b3c91570b9716fbb424e90935806b2b29814
+PKG_LICENSE=EDL-1.0,EPL-1.0
 
-.PHONY: all clean patch
+include $(RIOTBASE)/pkg/pkg.mk
 
-all: patch
-	"$(MAKE)" -C $(PKG_DIR)
-
-patch: $(PKG_DIR)/Makefile
-
-$(PKG_DIR)/Makefile: $(PKG_TEMP_DIR)/.git/config
-	echo 'include $$(RIOTBASE)/Makefile.base' > $(PKG_DIR)/Makefile
-
-$(PKG_TEMP_DIR)/.git/config:
-	test -d "$(PKG_TEMP_DIR)" || git clone "$(PKG_URL)" "$(PKG_TEMP_DIR)"; \
-		cd "$(PKG_TEMP_DIR)" && git checkout -f "$(PKG_VERSION)"; \
-		cd "$(PKG_TEMP_DIR)" && git am --ignore-whitespace "$(CURDIR)"/*.patch; \
-		mkdir -p "$(PKG_DIR)" ; \
-		cp $(PKG_TEMP_DIR)/core/*.c $(PKG_TEMP_DIR)/core/*.h $(PKG_DIR); \
-		cp $(PKG_TEMP_DIR)/core/er-coap-13/*.c $(PKG_TEMP_DIR)/core/er-coap-13/*.h $(PKG_DIR); \
-		rm -Rf "$(PKG_TEMP_DIR)"
-clean::
-	@echo "Cleaning up $(PKG_NAME) package..."
-	@cd "$(PKG_DIR)" 2> /dev/null > /dev/null && \
-		git clean -x -f && \
-		git am --abort && \
-		git reset --hard "$(PKG_VERSION)" && \
-		$(MAKE) patch || true
-
-
-distclean::
-	rm -rf "$(PKG_DIR)"
-
-Makefile.include:
-	@true
+all:
+	"$(MAKE)" -C $(PKG_SOURCE_DIR)/core -f $(RIOTBASE)/Makefile.base MODULE=wakaama_core
+	"$(MAKE)" -C $(PKG_SOURCE_DIR)/core/er-coap-13 -f $(RIOTBASE)/Makefile.base MODULE=wakaama_core_coap13
+	"$(MAKE)" -C $(PKG_SOURCE_DIR)/examples/client -f $(CURDIR)/wakaama_client.mk

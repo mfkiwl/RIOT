@@ -1,18 +1,24 @@
-/**
- * Ringbuffer header
- *
+/*
  * Copyright (C) 2013 Freie Universität Berlin
  * Copyright (C) 2013 INRIA
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
  * directory for more details.
- *
- * @ingroup  core_util
+ */
+
+/**
+ * @ingroup     core_util
  * @{
  * @file
  * @author Kaspar Schleiser <kaspar@schleiser.de>
  * @author René Kijewski <rene.kijewski@fu-berlin.de>
+ *
+ * @brief A utility for storing and retrieving byte data using a ring buffer.
+ *
+ * @details The ringbuffer is useful for buffering data in the same
+ * thread context but it is not thread-safe.  For a thread-safe ring
+ * buffer, see @ref sys_tsrb in the System library.
  * @}
  */
 
@@ -27,7 +33,7 @@ extern "C" {
  * @brief     Ringbuffer.
  * @details   Non thread-safe FIFO ringbuffer implementation around a `char` array.
  */
-typedef struct ringbuffer {
+typedef struct {
     char *buf;          /**< Buffer to operate on. */
     unsigned int size;  /**< Size of buf. */
     unsigned int start; /**< Current read position in the ring buffer. */
@@ -41,7 +47,7 @@ typedef struct ringbuffer {
  * @param[in]    BUF   Buffer to use for the ringbuffer. The size is deduced through `sizeof (BUF)`.
  * @returns      The static initializer.
  */
-#define RINGBUFFER_INIT(BUF) { (BUF), sizeof (BUF), 0, 0 }
+#define RINGBUFFER_INIT(BUF) { (BUF), sizeof(BUF), 0, 0 }
 
 /**
  * @brief        Initialize a ringbuffer.
@@ -49,7 +55,8 @@ typedef struct ringbuffer {
  * @param[in]    buffer    Buffer to use by rb.
  * @param[in]    bufsize   `sizeof (buffer)`
  */
-static inline void ringbuffer_init(ringbuffer_t *__restrict rb, char *buffer, unsigned bufsize)
+static inline void ringbuffer_init(ringbuffer_t *__restrict rb, char *buffer,
+                                   unsigned bufsize)
 {
     rb->buf = buffer;
     rb->size = bufsize;
@@ -78,7 +85,8 @@ int ringbuffer_add_one(ringbuffer_t *__restrict rb, char c);
  * @param[in]       n     Maximum number of elements to add.
  * @returns         Number of elements actually added. 0 if rb is full.
  */
-unsigned ringbuffer_add(ringbuffer_t *__restrict rb, const char *buf, unsigned n);
+unsigned ringbuffer_add(ringbuffer_t *__restrict rb, const char *buf,
+                        unsigned n);
 
 /**
  * @brief           Peek and remove oldest element from the ringbuffer.
@@ -129,7 +137,8 @@ static inline int ringbuffer_full(const ringbuffer_t *__restrict rb)
  * @param[in,out]   rb Ringbuffer to query.
  * @returns         number of available bytes
  */
-static inline unsigned int ringbuffer_get_free(const ringbuffer_t *__restrict rb)
+static inline unsigned int ringbuffer_get_free(
+    const ringbuffer_t *__restrict rb)
 {
     return rb->size - rb->avail;
 }
@@ -148,7 +157,8 @@ int ringbuffer_peek_one(const ringbuffer_t *__restrict rb);
  * @param[in]       n     Read at most n elements.
  * @returns         Same as ringbuffer_get()
  */
-unsigned ringbuffer_peek(const ringbuffer_t *__restrict rb, char *buf, unsigned n);
+unsigned ringbuffer_peek(const ringbuffer_t *__restrict rb, char *buf,
+                         unsigned n);
 
 #ifdef __cplusplus
 }

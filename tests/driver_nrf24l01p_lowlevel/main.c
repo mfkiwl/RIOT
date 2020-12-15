@@ -85,34 +85,26 @@ void print_register(char reg, int num_bytes)
 {
 
     char buf_return[num_bytes];
-    int ret;
 
+    spi_transfer_regs(SPI_PORT, CS_PIN,
+                      (CMD_R_REGISTER | (REGISTER_MASK & reg)),
+                      NULL, (uint8_t *)buf_return, num_bytes);
 
-    gpio_clear(CS_PIN);
-    xtimer_usleep(1);
-    ret = spi_transfer_regs(SPI_PORT, (CMD_R_REGISTER | (REGISTER_MASK & reg)), 0, buf_return, num_bytes);
-    gpio_set(CS_PIN);
+    if (num_bytes < 2) {
+        printf("0x%x returned: ", reg);
 
-    if (ret < 0) {
-        printf("Error in read access\n");
+        for (int i = 0; i < num_bytes; i++) {
+            prtbin(buf_return[i]);
+        }
     }
     else {
-        if (num_bytes < 2) {
-            printf("0x%x returned: ", reg);
+        printf("0x%x returned: ", reg);
 
-            for (int i = 0; i < num_bytes; i++) {
-                prtbin(buf_return[i]);
-            }
+        for (int i = 0; i < num_bytes; i++) {
+            printf("%x ", buf_return[i]);
         }
-        else {
-            printf("0x%x returned: ", reg);
 
-            for (int i = 0; i < num_bytes; i++) {
-                printf("%x ", buf_return[i]);
-            }
-
-            printf("\n\n");
-        }
+        printf("\n\n");
     }
 }
 
@@ -121,6 +113,7 @@ char rx_handler_stack[THREAD_STACKSIZE_MAIN];
 /* RX handler that waits for a message from the ISR */
 void *nrf24l01p_rx_handler(void *arg)
 {
+    (void)arg;
     msg_t msg_q[1];
     msg_init_queue(msg_q, 1);
     unsigned int pid = thread_getpid();
@@ -139,16 +132,16 @@ void *nrf24l01p_rx_handler(void *arg)
                 puts("Received packet.");
 
                 /* CE low */
-                nrf24l01p_stop((nrf24l01p_t *)m.content.ptr);
+                nrf24l01p_stop(m.content.ptr);
 
                 /* read payload */
-                nrf24l01p_read_payload((nrf24l01p_t *)m.content.ptr, rx_buf, NRF24L01P_MAX_DATA_LENGTH);
+                nrf24l01p_read_payload(m.content.ptr, rx_buf, NRF24L01P_MAX_DATA_LENGTH);
 
                 /* flush rx fifo */
-                nrf24l01p_flush_rx_fifo((nrf24l01p_t *)m.content.ptr);
+                nrf24l01p_flush_rx_fifo(m.content.ptr);
 
                 /* CE high */
-                nrf24l01p_start((nrf24l01p_t *)m.content.ptr);
+                nrf24l01p_start(m.content.ptr);
 
                 /* print rx buffer */
                 for (int i = 0; i < NRF24L01P_MAX_DATA_LENGTH; i++) {
@@ -217,7 +210,7 @@ int cmd_send(int argc, char **argv)
     char tx_buf[NRF24L01P_MAX_DATA_LENGTH];
 
     /* fill TX buffer with numbers 32..1 */
-    for (int i = 0; i < sizeof(tx_buf); i++) {
+    for (size_t i = 0; i < sizeof(tx_buf); i++) {
         tx_buf[i] = NRF24L01P_MAX_DATA_LENGTH - i;
     }
     /* power on the device */
@@ -266,6 +259,7 @@ int cmd_print_regs(int argc, char **argv)
 
     printf("################## Print Registers ###################\n");
 
+    spi_acquire(SPI_PORT, CS_PIN, SPI_MODE_0, SPI_CLK_400KHZ);
 
     puts("REG_CONFIG: ");
     print_register(REG_CONFIG, 1);
@@ -314,6 +308,8 @@ int cmd_print_regs(int argc, char **argv)
 
     puts("REG_FEATURE: ");
     print_register(REG_FEATURE, 1);
+
+    spi_release(SPI_PORT);
 
     return 0;
 }

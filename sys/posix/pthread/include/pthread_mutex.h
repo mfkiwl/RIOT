@@ -14,12 +14,11 @@
  * @note    Do not include this header file directly, but pthread.h.
  */
 
-#ifndef __SYS__POSIX__PTHREAD_MUTEX__H
-#define __SYS__POSIX__PTHREAD_MUTEX__H
+#ifndef PTHREAD_MUTEX_H
+#define PTHREAD_MUTEX_H
 
 #include <time.h>
 
-#include "kernel.h"
 #include "mutex.h"
 
 #ifdef __cplusplus
@@ -45,7 +44,7 @@ int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexa
 /**
  * @brief           Destroy a mutex.
  * @details         This is currently a no-op.
- *                  Destroying a mutex locked is undefined behavior.
+ *                  Destroying a mutex locked is undefined behavior.
  * @param[in,out]   mutex   Datum to destroy.
  * @returns         0, this invocation is a no-op that cannot fail.
  */
@@ -113,7 +112,7 @@ int pthread_mutex_setprioceiling(pthread_mutex_t *mutex, int prioceiling, int *o
 }
 #endif
 
-#endif
+#endif /* PTHREAD_MUTEX_H */
 
 /**
  * @}

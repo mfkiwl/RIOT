@@ -35,8 +35,8 @@ static void _fill_FIB_unique(size_t entries)
     size_t add_buf_size = 16;
     char addr_dst[add_buf_size];
     char addr_nxt[add_buf_size];
-    uint32_t addr_dst_flags = 0x77777777;
-    uint32_t addr_nxt_flags = 0x77777777;
+    uint32_t addr_dst_flags = 0x00777777;
+    uint32_t addr_nxt_flags = 0x00777777;
 
     for (size_t i = 0; i < entries; ++i) {
         /* construct "addresses" for the FIB */
@@ -59,8 +59,8 @@ static void _fill_FIB_multiple(size_t entries, size_t modulus)
     size_t add_buf_size = 16;
     char addr_dst[add_buf_size];
     char addr_nxt[add_buf_size];
-    uint32_t addr_dst_flags = 0x33333333;
-    uint32_t addr_nxt_flags = 0x33333333;
+    uint32_t addr_dst_flags = 0x00333333;
+    uint32_t addr_nxt_flags = 0x00333333;
 
     for (size_t i = 0; i < entries; ++i) {
         /* construct "addresses" for the FIB */
@@ -71,6 +71,29 @@ static void _fill_FIB_multiple(size_t entries, size_t modulus)
                       (uint8_t *)addr_nxt, add_buf_size - 1, addr_nxt_flags,
                       10000);
     }
+}
+
+/*
+* @brief helper to determine the prefix bits
+*/
+static size_t _get_prefix_bits_num(char* addr, size_t addr_len)
+{
+    /* Get the index of the first trailing `0` */
+    int i = 0;
+    for (i = addr_len-1; i > 0; --i) {
+        if (addr[i] != 0) {
+            break;
+        }
+    }
+
+    /* now we check the bits of the lowest byte */
+    uint8_t j = 0;
+    for ( ; j < 8; ++j) {
+        if ((addr[i] >> j) & 0x01) {
+            break;
+        }
+    }
+    return (i << 3) + (8 - j);
 }
 
 /*
@@ -441,7 +464,7 @@ static void test_fib_12_get_next_hop_fail(void)
 }
 
 /*
-* @brief get next hop for known destination but unsufficient size for the output
+* @brief get next hop for known destination but insufficient size for the output
 * It is expected to get no next hop and receive -ENOBUFS
 */
 static void test_fib_13_get_next_hop_fail_on_buffer_size(void)
@@ -493,22 +516,27 @@ static void test_fib_14_exact_and_prefix_match(void)
     snprintf(addr_dst, add_buf_size, "Test addr12");
     snprintf(addr_nxt, add_buf_size, "Test address %02d", 12);
 
+    /* get the prefix in bits */
+    uint32_t prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
+
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x12),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x12),
                   (uint8_t *)addr_nxt, add_buf_size - 1,
                   0x12, 100000);
 
     snprintf(addr_dst, add_buf_size, "Test addr123");
     snprintf(addr_nxt, add_buf_size, "Test address %02d", 23);
+    prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size - 1,
                   0x23, 100000);
 
     snprintf(addr_dst, add_buf_size, "Test addr1234");
     snprintf(addr_nxt, add_buf_size, "Test address %02d", 34);
+    prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x1234),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x1234),
                   (uint8_t *)addr_nxt, add_buf_size - 1,
                   0x34, 100000);
 
@@ -531,10 +559,9 @@ static void test_fib_14_exact_and_prefix_match(void)
     memset(addr_nxt, 0, add_buf_size);
     memset(addr_lookup, 0, add_buf_size);
 
-    /* cppcheck: addr_lookup is only passed but not required to be read,
-    *            since we test prefix matching
-    */
-    /* cppcheck-suppress redundantCopy */
+    /* cppcheck-suppress redundantCopy
+     * (reason: addr_lookup is only passed but not required to be read,
+     *  since we test prefix matching) */
     snprintf(addr_lookup, add_buf_size, "Test addr124");
     ret = fib_get_next_hop(&test_fib_table, &iface_id,
                            (uint8_t *)addr_nxt, &add_buf_size, &next_hop_flags,
@@ -576,7 +603,7 @@ static void test_fib_15_get_lifetime(void)
                                                     add_buf_size - 1));
 
     /* assuming some ms passed during these operations... */
-    now = xtimer_now64();
+    now = xtimer_now_usec64();
     uint64_t cmp_lifetime = now + 900000lU;
     uint64_t cmp_max_lifetime = now + 1100000lU;
 
@@ -612,14 +639,16 @@ static void test_fib_16_prefix_match(void)
     addr_dst[14] = (char)0x80;    /* 1000 0000 */
     addr_lookup[14] = (char)0x87; /* 1000 0111 */
 
+    uint32_t prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size - 1,
                   0x23, 100000);
 
     addr_dst[14] = (char)0x3c;    /* 0011 1100 */
+    prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size - 1,
                   0x23, 100000);
 
@@ -634,10 +663,12 @@ static void test_fib_16_prefix_match(void)
     /* test fail */
     addr_dst[14] = (char)0x3c;    /* 0011 1100 */
     addr_lookup[14] = (char)0x34; /* 0011 0100 */
+    addr_lookup[13] += 1;
     add_buf_size = 16;
+    prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
 
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size - 1, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size - 1, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size -
                   1, 0x23, 100000);
 
@@ -651,6 +682,7 @@ static void test_fib_16_prefix_match(void)
 
     /* test success (again) by adjusting the lsb */
     addr_lookup[14] = (char)0x3e; /* 0011 1110 */
+    addr_lookup[13] -= 1;
     add_buf_size = 16;
 
     memset(addr_nxt, 0, add_buf_size);
@@ -676,7 +708,8 @@ static void test_fib_16_prefix_match(void)
 */
 static void test_fib_17_get_entry_set(void)
 {
-    size_t addr_buf_size = 16;
+    /* FIXME: init as enum to fix folding-constant compiler error on OS X */
+    enum { addr_buf_size = 16 };
     char addr_dst[addr_buf_size];
     char addr_nxt[addr_buf_size];
 
@@ -694,9 +727,8 @@ static void test_fib_17_get_entry_set(void)
     fib_destination_set_entry_t arr_dst[arr_size];
     char prefix[addr_buf_size];
     memset(prefix,0, addr_buf_size);
-    /* cppcheck: prefix is set to all 0 before adding an address
-    */
-    /* cppcheck-suppress redundantCopy */
+    /* cppcheck-suppress redundantCopy
+     * (reason: prefix is set to all 0 before adding an address) */
     snprintf(prefix, addr_buf_size, "Test address 1");
 
     int ret = fib_get_destination_set(&test_fib_table,
@@ -709,13 +741,12 @@ static void test_fib_17_get_entry_set(void)
     arr_size = 20;
 
     memset(prefix,0, addr_buf_size);
-    /* cppcheck: prefix is set to all 0 before adding an address
-    */
-    /* cppcheck-suppress redundantCopy */
+    /* cppcheck-suppress redundantCopy
+     * (reason: prefix is set to all 0 before adding an address) */
     snprintf(prefix, addr_buf_size, "Test address 0");
 
     ret = fib_get_destination_set(&test_fib_table,
-                                  (uint8_t *)prefix, addr_buf_size-1,
+                                  (uint8_t *)prefix, addr_buf_size - 1,
                                   &arr_dst[0], &arr_size);
     TEST_ASSERT_EQUAL_INT(0, ret);
 
@@ -723,11 +754,13 @@ static void test_fib_17_get_entry_set(void)
     TEST_ASSERT_EQUAL_INT(20, arr_size);
     arr_size = 20;
 
-    memset(prefix,0, addr_buf_size);
+    memset(prefix, 0, addr_buf_size);
+    /* cppcheck-suppress redundantCopy
+     * (reason: prefix is set to all 0 before adding an address) */
     snprintf(prefix, addr_buf_size, "Test address");
 
     ret = fib_get_destination_set(&test_fib_table,
-                                  (uint8_t *)prefix, addr_buf_size-1,
+                                  (uint8_t *)prefix, addr_buf_size - 1,
                                   &arr_dst[0], &arr_size);
     TEST_ASSERT_EQUAL_INT(0, ret);
 
@@ -813,7 +846,7 @@ static void test_fib_19_default_gateway(void)
 
     /* add a default gateway entry */
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size, 0x123,
                   (uint8_t *)addr_nxt, add_buf_size, 0x23,
                   100000);
 
@@ -888,9 +921,10 @@ static void test_fib_20_replace_prefix(void)
         addr_lookup[i] = i+1;
     }
 
+    uint32_t prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     /* add a prefix entry */
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size, 0x23,
                   100000);
 
@@ -918,9 +952,10 @@ static void test_fib_20_replace_prefix(void)
         addr_dst[i] = i+1;
     }
 
+    prefix_len = _get_prefix_bits_num(addr_dst, strlen(addr_dst));
     /* change the prefix entry */
     fib_add_entry(&test_fib_table, 42, (uint8_t *)addr_dst,
-                  add_buf_size, (FIB_FLAG_NET_PREFIX | 0x123),
+                  add_buf_size, ((prefix_len << FIB_FLAG_NET_PREFIX_SHIFT) | 0x123),
                   (uint8_t *)addr_nxt, add_buf_size, 0x24,
                   100000);
 

@@ -20,48 +20,90 @@
 
 #include <errno.h>
 #include <stdio.h>
+#ifdef PICOLIBC_TLS
+#include <picotls.h>
+#endif
 
+#include "assert.h"
 #include "thread.h"
-#include "kernel.h"
 #include "irq.h"
 
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
-#include "kernel_internal.h"
 #include "bitarithm.h"
 #include "sched.h"
 
-volatile tcb_t *thread_get(kernel_pid_t pid)
+#define ENABLE_DEBUG 0
+#include "debug.h"
+
+thread_status_t thread_getstatus(kernel_pid_t pid)
 {
-    if (pid_is_valid(pid)) {
-        return sched_threads[pid];
-    }
-    return NULL;
+    thread_t *thread = thread_get(pid);
+
+    return thread ? thread->status : STATUS_NOT_FOUND;
 }
 
-int thread_getstatus(kernel_pid_t pid)
-{
-    volatile tcb_t *t = thread_get(pid);
-    return t ? (int) t->status : STATUS_NOT_FOUND;
-}
-
-#ifdef DEVELHELP
 const char *thread_getname(kernel_pid_t pid)
 {
-    volatile tcb_t *t = thread_get(pid);
-    return t ? t->name : NULL;
-}
+#ifdef CONFIG_THREAD_NAMES
+    thread_t *thread = thread_get(pid);
+    return thread ? thread->name : NULL;
+#else
+    (void)pid;
+    return NULL;
 #endif
+}
 
-void thread_sleep(void)
+void thread_zombify(void)
 {
-    if (inISR()) {
+    if (irq_is_in()) {
         return;
     }
 
-    unsigned state = disableIRQ();
-    sched_set_status((tcb_t *)sched_active_thread, STATUS_SLEEPING);
-    restoreIRQ(state);
+    irq_disable();
+    sched_set_status(thread_get_active(), STATUS_ZOMBIE);
+    irq_enable();
+    thread_yield_higher();
+
+    /* this line should never be reached */
+    UNREACHABLE();
+}
+
+int thread_kill_zombie(kernel_pid_t pid)
+{
+    DEBUG("thread_kill: Trying to kill PID %" PRIkernel_pid "...\n", pid);
+    unsigned state = irq_disable();
+
+    int result = (int)STATUS_NOT_FOUND;
+
+    thread_t *thread = thread_get(pid);
+
+    if (!thread) {
+        DEBUG("thread_kill: Thread does not exist!\n");
+    }
+    else if (thread->status == STATUS_ZOMBIE) {
+        DEBUG("thread_kill: Thread is a zombie.\n");
+
+        sched_threads[pid] = NULL;
+        sched_num_threads--;
+        sched_set_status(thread, STATUS_STOPPED);
+
+        result =  1;
+    }
+    else {
+        DEBUG("thread_kill: Thread is not a zombie!\n");
+    }
+    irq_restore(state);
+    return result;
+}
+
+void thread_sleep(void)
+{
+    if (irq_is_in()) {
+        return;
+    }
+
+    unsigned state = irq_disable();
+    sched_set_status(thread_get_active(), STATUS_SLEEPING);
+    irq_restore(state);
     thread_yield_higher();
 }
 
@@ -69,56 +111,85 @@ int thread_wakeup(kernel_pid_t pid)
 {
     DEBUG("thread_wakeup: Trying to wakeup PID %" PRIkernel_pid "...\n", pid);
 
-    unsigned old_state = disableIRQ();
+    unsigned old_state = irq_disable();
 
-    tcb_t *other_thread = (tcb_t *) sched_threads[pid];
-    if (other_thread && other_thread->status == STATUS_SLEEPING) {
+    thread_t *thread = thread_get(pid);
+
+    if (!thread) {
+        DEBUG("thread_wakeup: Thread does not exist!\n");
+    }
+    else if (thread->status == STATUS_SLEEPING) {
         DEBUG("thread_wakeup: Thread is sleeping.\n");
 
-        sched_set_status(other_thread, STATUS_RUNNING);
+        sched_set_status(thread, STATUS_RUNNING);
 
-        restoreIRQ(old_state);
-        sched_switch(other_thread->priority);
+        irq_restore(old_state);
+        sched_switch(thread->priority);
 
         return 1;
     }
     else {
         DEBUG("thread_wakeup: Thread is not sleeping!\n");
-
-        restoreIRQ(old_state);
-        return STATUS_NOT_FOUND;
     }
+
+    irq_restore(old_state);
+    return (int)STATUS_NOT_FOUND;
 }
 
 void thread_yield(void)
 {
-    unsigned old_state = disableIRQ();
-    tcb_t *me = (tcb_t *)sched_active_thread;
+    unsigned old_state = irq_disable();
+    thread_t *me = thread_get_active();
+
     if (me->status >= STATUS_ON_RUNQUEUE) {
-        clist_advance(&sched_runqueues[me->priority]);
+        clist_lpoprpush(&sched_runqueues[me->priority]);
     }
-    restoreIRQ(old_state);
+    irq_restore(old_state);
 
     thread_yield_higher();
 }
 
-#ifdef DEVELHELP
-uintptr_t thread_measure_stack_free(char *stack)
+void thread_add_to_list(list_node_t *list, thread_t *thread)
 {
-    uintptr_t *stackp = (uintptr_t *)stack;
+    assert(thread->status < STATUS_ON_RUNQUEUE);
+
+    uint16_t my_prio = thread->priority;
+    list_node_t *new_node = (list_node_t *)&thread->rq_entry;
+
+    while (list->next) {
+        thread_t *list_entry = container_of((clist_node_t *)list->next,
+                                            thread_t, rq_entry);
+        if (list_entry->priority > my_prio) {
+            break;
+        }
+        list = list->next;
+    }
+
+    new_node->next = list->next;
+    list->next = new_node;
+}
+
+#ifdef DEVELHELP
+uintptr_t thread_measure_stack_free(const char *stack)
+{
+    /* Alignment of stack has been fixed (if needed) by thread_create(), so
+     * we can silence -Wcast-align here */
+    uintptr_t *stackp = (uintptr_t *)(uintptr_t)stack;
 
     /* assume that the comparison fails before or after end of stack */
     /* assume that the stack grows "downwards" */
-    while (*stackp == (uintptr_t) stackp) {
+    while (*stackp == (uintptr_t)stackp) {
         stackp++;
     }
 
-    uintptr_t space_free = (uintptr_t) stackp - (uintptr_t) stack;
+    uintptr_t space_free = (uintptr_t)stackp - (uintptr_t)stack;
     return space_free;
 }
 #endif
 
-kernel_pid_t thread_create(char *stack, int stacksize, char priority, int flags, thread_task_func_t function, void *arg, const char *name)
+kernel_pid_t thread_create(char *stack, int stacksize, uint8_t priority,
+                           int flags, thread_task_func_t function, void *arg,
+                           const char *name)
 {
     if (priority >= SCHED_PRIO_LEVELS) {
         return -EINVAL;
@@ -126,12 +197,13 @@ kernel_pid_t thread_create(char *stack, int stacksize, char priority, int flags,
 
 #ifdef DEVELHELP
     int total_stacksize = stacksize;
-#else
+#endif
+#ifndef CONFIG_THREAD_NAMES
     (void) name;
 #endif
 
     /* align the stack on a 16/32bit boundary */
-    uintptr_t misalignment = (uintptr_t) stack % ALIGN_OF(void *);
+    uintptr_t misalignment = (uintptr_t)stack % ALIGN_OF(void *);
     if (misalignment) {
         misalignment = ALIGN_OF(void *) - misalignment;
         stack += misalignment;
@@ -139,32 +211,46 @@ kernel_pid_t thread_create(char *stack, int stacksize, char priority, int flags,
     }
 
     /* make room for the thread control block */
-    stacksize -= sizeof(tcb_t);
+    stacksize -= sizeof(thread_t);
 
-    /* round down the stacksize to a multiple of tcb_t alignments (usually 16/32bit) */
-    stacksize -= stacksize % ALIGN_OF(tcb_t);
+    /* round down the stacksize to a multiple of thread_t alignments (usually 16/32bit) */
+    stacksize -= stacksize % ALIGN_OF(thread_t);
 
-    /* allocate our thread control block at the top of our stackspace */
-    tcb_t *cb = (tcb_t *) (stack + stacksize);
+    if (stacksize < 0) {
+        DEBUG("thread_create: stacksize is too small!\n");
+    }
+    /* allocate our thread control block at the top of our stackspace. Cast to
+     * (uintptr_t) intermediately to silence -Wcast-align. (We manually made
+     * sure alignment is correct above.) */
+    thread_t *thread = (thread_t *)(uintptr_t)(stack + stacksize);
+
+#ifdef PICOLIBC_TLS
+    stacksize -= _tls_size();
+
+    thread->tls = stack + stacksize;
+    _init_tls(thread->tls);
+#endif
 
 #if defined(DEVELHELP) || defined(SCHED_TEST_STACK)
     if (flags & THREAD_CREATE_STACKTEST) {
-        /* assign each int of the stack the value of it's address */
-        uintptr_t *stackmax = (uintptr_t *) (stack + stacksize);
-        uintptr_t *stackp = (uintptr_t *) stack;
+        /* assign each int of the stack the value of it's address. Alignment
+         * has been handled above, so silence -Wcast-align */
+        uintptr_t *stackmax = (uintptr_t *)(uintptr_t)(stack + stacksize);
+        uintptr_t *stackp = (uintptr_t *)(uintptr_t)stack;
 
         while (stackp < stackmax) {
-            *stackp = (uintptr_t) stackp;
+            *stackp = (uintptr_t)stackp;
             stackp++;
         }
     }
     else {
-        /* create stack guard */
-        *(uintptr_t *) stack = (uintptr_t) stack;
+        /* create stack guard. Alignment has been handled above, so silence
+         * -Wcast-align */
+        *(uintptr_t *)(uintptr_t)stack = (uintptr_t)stack;
     }
 #endif
 
-    unsigned state = disableIRQ();
+    unsigned state = irq_disable();
 
     kernel_pid_t pid = KERNEL_PID_UNDEF;
     for (kernel_pid_t i = KERNEL_PID_FIRST; i <= KERNEL_PID_LAST; ++i) {
@@ -176,56 +262,87 @@ kernel_pid_t thread_create(char *stack, int stacksize, char priority, int flags,
     if (pid == KERNEL_PID_UNDEF) {
         DEBUG("thread_create(): too many threads!\n");
 
-        restoreIRQ(state);
+        irq_restore(state);
 
         return -EOVERFLOW;
     }
 
-    sched_threads[pid] = cb;
+    sched_threads[pid] = thread;
 
-    cb->pid = pid;
-    cb->sp = thread_stack_init(function, arg, stack, stacksize);
+    thread->pid = pid;
+    thread->sp = thread_stack_init(function, arg, stack, stacksize);
 
-#if defined(DEVELHELP) || defined(SCHED_TEST_STACK)
-    cb->stack_start = stack;
+#if defined(DEVELHELP) || defined(SCHED_TEST_STACK) || \
+    defined(MODULE_MPU_STACK_GUARD)
+    thread->stack_start = stack;
 #endif
 
 #ifdef DEVELHELP
-    cb->stack_size = total_stacksize;
-    cb->name = name;
+    thread->stack_size = total_stacksize;
+#endif
+#ifdef CONFIG_THREAD_NAMES
+    thread->name = name;
 #endif
 
-    cb->priority = priority;
-    cb->status = 0;
+    thread->priority = priority;
+    thread->status = STATUS_STOPPED;
 
-    cb->rq_entry.next = NULL;
-    cb->rq_entry.prev = NULL;
+    thread->rq_entry.next = NULL;
 
-    cb->wait_data = NULL;
-
-    cb->msg_waiters.first = NULL;
-
-    cib_init(&(cb->msg_queue), 0);
-    cb->msg_array = NULL;
+#ifdef MODULE_CORE_MSG
+    thread->wait_data = NULL;
+    thread->msg_waiters.next = NULL;
+    cib_init(&(thread->msg_queue), 0);
+    thread->msg_array = NULL;
+#endif
 
     sched_num_threads++;
 
-    DEBUG("Created thread %s. PID: %" PRIkernel_pid ". Priority: %u.\n", name, cb->pid, priority);
+    DEBUG("Created thread %s. PID: %" PRIkernel_pid ". Priority: %u.\n", name,
+          thread->pid, priority);
 
     if (flags & THREAD_CREATE_SLEEPING) {
-        sched_set_status(cb, STATUS_SLEEPING);
+        sched_set_status(thread, STATUS_SLEEPING);
     }
     else {
-        sched_set_status(cb, STATUS_PENDING);
+        sched_set_status(thread, STATUS_PENDING);
 
         if (!(flags & THREAD_CREATE_WOUT_YIELD)) {
-            restoreIRQ(state);
+            irq_restore(state);
             sched_switch(priority);
             return pid;
         }
     }
 
-    restoreIRQ(state);
+    irq_restore(state);
 
     return pid;
+}
+
+static const char *state_names[STATUS_NUMOF] = {
+    [STATUS_STOPPED] = "stopped",
+    [STATUS_ZOMBIE] = "zombie",
+    [STATUS_SLEEPING] = "sleeping",
+    [STATUS_MUTEX_BLOCKED] = "bl mutex",
+    [STATUS_RECEIVE_BLOCKED] = "bl rx",
+    [STATUS_SEND_BLOCKED] = "bl send",
+    [STATUS_REPLY_BLOCKED] = "bl reply",
+    [STATUS_FLAG_BLOCKED_ANY] = "bl anyfl",
+    [STATUS_FLAG_BLOCKED_ALL] = "bl allfl",
+    [STATUS_MBOX_BLOCKED] = "bl mbox",
+    [STATUS_COND_BLOCKED] = "bl cond",
+    [STATUS_RUNNING] = "running",
+    [STATUS_PENDING] = "pending",
+};
+
+#define STATE_NAME_UNKNOWN "unknown"
+
+const char *thread_state_to_string(thread_status_t state)
+{
+    const char *name = state_names[state] ? state_names[state] : NULL;
+
+    assert(name != NULL); /* if compiling with assertions, this is an error that
+                            indicates that the table above is incomplete */
+
+    return (name != NULL) ? name : STATE_NAME_UNKNOWN;
 }

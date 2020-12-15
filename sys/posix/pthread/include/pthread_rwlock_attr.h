@@ -14,8 +14,8 @@
  * @note    Do not include this header file directly, but pthread.h.
  */
 
-#ifndef __SYS__POSIX__PTHREAD_RWLOCK_ATTR__H
-#define __SYS__POSIX__PTHREAD_RWLOCK_ATTR__H
+#ifndef PTHREAD_RWLOCK_ATTR_H
+#define PTHREAD_RWLOCK_ATTR_H
 
 #include <errno.h>
 
@@ -27,7 +27,7 @@ extern "C" {
  * @brief     Attributes for a new reader/writer lock.
  * @details   The options set in this struct will be ignored by pthread_rwlock_init().
  */
-typedef struct pthread_rwlockattr
+typedef struct
 {
     /**
      * @brief     Whether to share lock with child processes.
@@ -38,7 +38,7 @@ typedef struct pthread_rwlockattr
 } pthread_rwlockattr_t;
 
 /**
- * @brief           Initilize the attribute set with the defaults.
+ * @brief           Initialize the attribute set with the defaults.
  * @details         Default value for pshared: `PTHREAD_PROCESS_PRIVATE`.
  *                  A zeroed out datum is initialized.
  * @param[in,out]   attr   Attribute set to initialize.
@@ -80,7 +80,7 @@ int pthread_rwlockattr_setpshared(pthread_rwlockattr_t *attr, int pshared);
 }
 #endif
 
-#endif
+#endif /* PTHREAD_RWLOCK_ATTR_H */
 
 /**
  * @}

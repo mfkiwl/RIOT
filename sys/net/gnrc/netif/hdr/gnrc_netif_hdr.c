@@ -13,9 +13,12 @@
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
 
+#include <assert.h>
+
 #include "net/gnrc/netif/hdr.h"
 
-gnrc_pktsnip_t *gnrc_netif_hdr_build(uint8_t *src, uint8_t src_len, uint8_t *dst, uint8_t dst_len)
+gnrc_pktsnip_t *gnrc_netif_hdr_build(const uint8_t *src, uint8_t src_len,
+                                     const uint8_t *dst, uint8_t dst_len)
 {
     gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, NULL,
                                           sizeof(gnrc_netif_hdr_t) + src_len + dst_len,
@@ -36,6 +39,48 @@ gnrc_pktsnip_t *gnrc_netif_hdr_build(uint8_t *src, uint8_t src_len, uint8_t *dst
     }
 
     return pkt;
+}
+
+uint8_t gnrc_netif_hdr_get_flag(gnrc_pktsnip_t* pkt)
+{
+    assert(pkt != NULL);
+
+    pkt = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
+    if (pkt && pkt->data) {
+        gnrc_netif_hdr_t *netif_hdr = pkt->data;
+        return netif_hdr->flags;
+    }
+    return 0U;
+}
+
+int gnrc_netif_hdr_get_dstaddr(gnrc_pktsnip_t* pkt, uint8_t** pointer_to_addr)
+{
+    assert(pkt != NULL);
+
+    pkt = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
+    if (pkt && pkt->data) {
+        gnrc_netif_hdr_t *netif_hdr = pkt->data;
+        if (netif_hdr->dst_l2addr_len > 0) {
+            *pointer_to_addr = gnrc_netif_hdr_get_dst_addr(netif_hdr);
+            return netif_hdr->dst_l2addr_len;
+        }
+    }
+    return -ENOENT;
+}
+
+int gnrc_netif_hdr_get_srcaddr(gnrc_pktsnip_t* pkt, uint8_t** pointer_to_addr)
+{
+    assert(pkt != NULL);
+
+    pkt = gnrc_pktsnip_search_type(pkt, GNRC_NETTYPE_NETIF);
+    if (pkt && pkt->data) {
+        gnrc_netif_hdr_t *netif_hdr = pkt->data;
+        if (netif_hdr->src_l2addr_len > 0) {
+            *pointer_to_addr = gnrc_netif_hdr_get_src_addr(netif_hdr);
+            return netif_hdr->src_l2addr_len;
+        }
+    }
+    return -ENOENT;
 }
 
 /** @} */

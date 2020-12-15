@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     driver_rgbled
+ * @ingroup     drivers_rgbled
  * @{
  *
  * @file
@@ -29,7 +29,7 @@
 /**
  * @name Set the default resolution to 8-bit per color (for a 24-bit color space)
  */
-#define PWM_RES         (255)
+#define PWM_RES         (256)
 
 
 void rgbled_init(rgbled_t *led, pwm_t pwm, int channel_r, int channel_g, int channel_b)
@@ -41,7 +41,7 @@ void rgbled_init(rgbled_t *led, pwm_t pwm, int channel_r, int channel_g, int cha
     pwm_init(pwm, PWM_LEFT, PWM_FREQU, PWM_RES);
 }
 
-void rgbled_set(rgbled_t *led, color_rgb_t *color)
+void rgbled_set(const rgbled_t *led, color_rgb_t *color)
 {
     pwm_set(led->device, led->channel_r, (unsigned int)color->r);
     pwm_set(led->device, led->channel_g, (unsigned int)color->g);

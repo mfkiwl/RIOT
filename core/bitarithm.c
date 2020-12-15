@@ -21,48 +21,49 @@
 
 #include <stdio.h>
 
-unsigned bitarithm_msb(unsigned v)
-{
-    register unsigned r; // result of log2(v) will go here
+#include "bitarithm.h"
 
-#if ARCH_32_BIT
+unsigned bitarith_msb_32bit_no_native_clz(unsigned v)
+{
+    register unsigned r; /* result of log2(v) will go here */
     register unsigned shift;
 
+    /* begin{code-style-ignore} */
     r =     (v > 0xFFFF) << 4; v >>= r;
     shift = (v > 0xFF  ) << 3; v >>= shift; r |= shift;
     shift = (v > 0xF   ) << 2; v >>= shift; r |= shift;
     shift = (v > 0x3   ) << 1; v >>= shift; r |= shift;
                                             r |= (v >> 1);
-#else
-    r = 0;
-    while (v >>= 1) { // unroll for more speed...
-        r++;
-    }
-
-#endif
+    /* end{code-style-ignore} */
 
     return r;
 }
-/*---------------------------------------------------------------------------*/
-unsigned bitarithm_lsb(register unsigned v)
-{
-    register unsigned r = 0;
 
-    while ((v & 0x01) == 0) {
-        v >>= 1;
-        r++;
-    };
-
-    return r;
-}
-/*---------------------------------------------------------------------------*/
 unsigned bitarithm_bits_set(unsigned v)
 {
-    unsigned c; // c accumulates the total bits set in v
+    unsigned c; /* c accumulates the total bits set in v */
 
     for (c = 0; v; c++) {
-        v &= v - 1; // clear the least significant bit set
+        v &= v - 1; /* clear the least significant bit set */
     }
 
     return c;
 }
+
+#if !ARCH_32_BIT
+uint8_t bitarithm_bits_set_u32(uint32_t v)
+{
+    uint8_t c;
+
+    for (c = 0; v; c++) {
+        v &= v - 1; /* clear the least significant bit set */
+    }
+    return c;
+}
+#endif
+
+const uint8_t MultiplyDeBruijnBitPosition[32] =
+{
+    0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8,
+    31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+};

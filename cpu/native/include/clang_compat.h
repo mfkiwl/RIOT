@@ -8,21 +8,22 @@
  * directory for more details.
  */
 
-#ifndef __CLANG_COMPAT_H
+#ifndef CLANG_COMPAT_H
+#define CLANG_COMPAT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#undef HTONS
-#undef HTONL
-#undef HTONLL
-#undef NTOHS
-#undef NTOHL
-#undef NTOHLL
+#undef htons
+#undef htonl
+#undef htonll
+#undef ntohs
+#undef ntohl
+#undef ntohll
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /* CLANG_COMPAT_H */

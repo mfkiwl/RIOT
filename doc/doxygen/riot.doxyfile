@@ -140,7 +140,7 @@ INLINE_INHERITED_MEMB  = NO
 # shortest path that makes the file name unique will be used
 # The default value is: YES.
 
-FULL_PATH_NAMES        = NO
+FULL_PATH_NAMES        = YES
 
 # The STRIP_FROM_PATH tag can be used to strip a user-defined part of the path.
 # Stripping is only done if one of the specified strings matches the left-hand
@@ -152,7 +152,7 @@ FULL_PATH_NAMES        = NO
 # will be relative from the directory where doxygen is started.
 # This tag requires that the tag FULL_PATH_NAMES is set to YES.
 
-STRIP_FROM_PATH        =
+STRIP_FROM_PATH        = ../../
 
 # The STRIP_FROM_INC_PATH tag can be used to strip a user-defined part of the
 # path mentioned in the documentation of a class, which tells the reader which
@@ -161,7 +161,7 @@ STRIP_FROM_PATH        =
 # specify the list of include paths that are normally passed to the compiler
 # using the -I flag.
 
-STRIP_FROM_INC_PATH    =
+STRIP_FROM_INC_PATH    = # $(STRIP_FROM_INC_PATH_LIST) # Exported from Makefile.
 
 # If the SHORT_NAMES tag is set to YES, doxygen will generate much shorter (but
 # less readable) file names. This can be useful is your file systems doesn't
@@ -228,7 +228,7 @@ TAB_SIZE               = 4
 # "Side Effects:". You can put \n's in the value part of an alias to insert
 # newlines.
 
-ALIASES                =
+ALIASES                = experimental="@warning <strong class=\"text-danger\">This feature is experimental!</strong>\n"
 
 # This tag can be used to specify a number of word-keyword mappings (TCL only).
 # A mapping has the form "name=value". For example adding "class=itcl::class"
@@ -350,7 +350,7 @@ DISTRIBUTE_GROUP_DOC   = NO
 # \nosubgrouping command.
 # The default value is: YES.
 
-SUBGROUPING            = YES
+SUBGROUPING            = NO
 
 # When the INLINE_GROUPED_CLASSES tag is set to YES, classes, structs and unions
 # are shown inside the group in which they are included (e.g. using \ingroup)
@@ -672,7 +672,7 @@ FILE_VERSION_FILTER    =
 # DoxygenLayout.xml, doxygen will parse it automatically even if the LAYOUT_FILE
 # tag is left empty.
 
-LAYOUT_FILE            =
+LAYOUT_FILE            = RIOTDoxygenLayout.xml
 
 # The CITE_BIB_FILES tag can be used to specify one or more bib files containing
 # the reference definitions. This must be a list of .bib files. The .bib
@@ -693,7 +693,7 @@ CITE_BIB_FILES         =
 # messages are off.
 # The default value is: NO.
 
-QUIET                  = NO
+QUIET                  = YES
 
 # The WARNINGS tag can be used to turn on/off the warning messages that are
 # generated to standard error ( stderr) by doxygen. If WARNINGS is set to YES
@@ -764,7 +764,16 @@ INPUT                  = ../../doc.txt \
                          src/mainpage.md \
                          src/creating-modules.md \
                          src/creating-an-application.md \
-                         src/getting-started.md
+                         src/porting-boards.md \
+                         src/driver-guide.md \
+                         src/getting-started.md \
+                         ../../tests/README.md \
+                         src/build-system-basics.md \
+                         src/kconfig/kconfig.md \
+                         src/using-cpp.md \
+                         src/advanced-build-system-tricks.md \
+                         src/changelog.md \
+                         ../../LOSTANDFOUND.md
 
 # This tag can be used to specify the character encoding of the source files
 # that doxygen parses. Internally doxygen uses the UTF-8 encoding. Doxygen uses
@@ -818,31 +827,18 @@ EXCLUDE_SYMLINKS       = NO
 # exclude all test directories for example use the pattern */test/*
 
 EXCLUDE_PATTERNS       = */board/*/tools/* \
-                         */cpu/*/include/component/* \
-                         */cpu/*/include/instance/* \
-                         */cpu/*/include/pio/* \
-                         */cpu/*/include/atmel/* \
-                         */cpu/sam3/include/sam3* \
-                         */cpu/sam3/include/system_sam*.h \
-                         */cpu/samd21/include/samd21.h \
-                         */cpu/lpc*/include/core_cm*.h \
-                         */cpu/cortexm_common/include/core_cm*.h \
-                         */cpu/stm32f*/include/stm32f* \
-                         */drivers/nrf24l01p/include/nrf24l01p_settings.h \
-                         */cpu/nrf51/include/nrf51*.h \
-                         */cpu/lpc1768/include/LPC17xx.h \
-                         */cpu/lpc11u34/include/LPC11Uxx.h \
-                         */boards/*/include/periph_conf.h \
-                         */cpu/x86/include/x86_pci.h \
-                         */cpu/stm32l1/include/stm32l1xx.h \
-                         */cpu/k60/include/MK60D10.h \
-                         */cpu/k60/include/MK60DZ10.h \
-                         */cpu/kw2x/include/MKW22D5.h \
-                         */cpu/k64f/include/MK64F12.h \
-                         */cpu/ezr32wg/include/ezr* \
-                         */pkg/*/*/* \
+                         */cpu/atmega_common/include/sys/*.h \
+                         */cpu/msp430_common/include/stdatomic.h \
+                         */cpu/msp430_common/include/sys/*.h \
+                         */cpu/native/osx-libc-extra \
+                         */cpu/x86/include/* \
+                         */drivers/kw2xrf/include/overwrites.h \
                          */pkg/tlsf/patch.txt \
-
+                         */sys/include/embUnit/* \
+                         */sys/random/fortuna/* \
+                         */sys/random/tinymt32/* \
+                         */toolchain/* \
+                         */vendor/* \
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the
@@ -1085,7 +1081,7 @@ HTML_FILE_EXTENSION    = .html
 # of the possible markers and block names see the documentation.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_HEADER            =
+HTML_HEADER            = header.html
 
 # The HTML_FOOTER tag can be used to specify a user-defined HTML footer for each
 # generated HTML page. If the tag is left blank doxygen will generate a standard
@@ -1095,7 +1091,7 @@ HTML_HEADER            =
 # that doxygen normally uses.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_FOOTER            =
+HTML_FOOTER            = footer.html
 
 # The HTML_STYLESHEET tag can be used to specify a user-defined cascading style
 # sheet that is used by each HTML page. It can be used to fine-tune the look of
@@ -1120,7 +1116,7 @@ HTML_STYLESHEET        =
 # list). For an example see the documentation.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_EXTRA_STYLESHEET  =
+HTML_EXTRA_STYLESHEET  = src/css/riot.css
 
 # The HTML_EXTRA_FILES tag can be used to specify one or more extra images or
 # other source files which should be copied to the HTML output directory. Note
@@ -1130,7 +1126,30 @@ HTML_EXTRA_STYLESHEET  =
 # files will be copied as-is; there are no commands or markers available.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_EXTRA_FILES       =
+HTML_EXTRA_FILES       = src/css/bootstrap.min.css \
+                         src/css/fonts.css \
+                         src/css/jquery.smartmenus.bootstrap.css \
+                         src/css/riot.css \
+                         src/favicon.png \
+                         src/fonts/glyphicons-halflings-regular.eot \
+                         src/fonts/glyphicons-halflings-regular.svg \
+                         src/fonts/glyphicons-halflings-regular.ttf \
+                         src/fonts/glyphicons-halflings-regular.woff2 \
+                         src/fonts/glyphicons-halflings-regular.woff \
+                         src/fonts/miso.eot \
+                         src/fonts/miso.svg \
+                         src/fonts/miso.ttf \
+                         src/fonts/miso.woff \
+                         src/js/bootstrap.min.js \
+                         src/js/doxy-jquery.js \
+                         src/js/jquery.min.js \
+                         src/js/jquery.powertip.min.js \
+                         src/js/jquery.scrollTo.min.js \
+                         src/js/jquery.smartmenus.min.js \
+                         src/js/jquery.smartmenus.bootstrap.min.js \
+                         src/js/jquery-ui.min.js \
+                         src/js/menu.js \
+                         src/js/riot-doxy.js
 
 # The HTML_COLORSTYLE_HUE tag controls the color of the HTML output. Doxygen
 # will adjust the colors in the stylesheet and background images according to
@@ -1141,7 +1160,7 @@ HTML_EXTRA_FILES       =
 # Minimum value: 0, maximum value: 359, default value: 220.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_COLORSTYLE_HUE    = 354
+HTML_COLORSTYLE_HUE    = 162
 
 # The HTML_COLORSTYLE_SAT tag controls the purity (or saturation) of the colors
 # in the HTML output. For a value of 0 the output will use grayscales only. A
@@ -1149,7 +1168,7 @@ HTML_COLORSTYLE_HUE    = 354
 # Minimum value: 0, maximum value: 255, default value: 100.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_COLORSTYLE_SAT    = 86
+HTML_COLORSTYLE_SAT    = 62
 
 # The HTML_COLORSTYLE_GAMMA tag controls the gamma correction applied to the
 # luminance component of the colors in the HTML output. Values below 100
@@ -1160,7 +1179,7 @@ HTML_COLORSTYLE_SAT    = 86
 # Minimum value: 40, maximum value: 240, default value: 80.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-HTML_COLORSTYLE_GAMMA  = 74
+HTML_COLORSTYLE_GAMMA  = 80
 
 # If the HTML_TIMESTAMP tag is set to YES then the footer of each generated HTML
 # page will contain the date and time when the page was generated. Setting this
@@ -1657,7 +1676,7 @@ EXTRA_PACKAGES         =
 # following commands have a special meaning inside the header: $title,
 # $datetime, $date, $doxygenversion, $projectname, $projectnumber,
 # $projectbrief, $projectlogo. Doxygen will replace $title with the empy string,
-# for the replacement values of the other commands the user is refered to
+# for the replacement values of the other commands the user is referred to
 # HTML_HEADER.
 # This tag requires that the tag GENERATE_LATEX is set to YES.
 
@@ -1997,14 +2016,12 @@ INCLUDE_FILE_PATTERNS  =
 PREDEFINED             = DOXYGEN \
                          __attribute__(x)= \
                          ADC_NUMOF \
-                         CPUID_ID_LEN \
+                         CPUID_LEN \
                          DAC_NUMOF \
                          GPIO_NUMOF \
                          I2C_NUMOF \
                          PWM_NUMOF \
                          RANDOM_NUMOF \
-                         RTC_NUMOF \
-                         RTT_NUMOF \
                          GPIO_NUMOF \
                          SPI_NUMOF \
                          UART_NUMOF \
@@ -2017,7 +2034,8 @@ PREDEFINED             = DOXYGEN \
                          MODULE_GNRC_SIXLOWPAN \
                          MODULE_GNRC_SIXLOWPAN_ND_ROUTER \
                          MODULE_GNRC_SIXLOWPAN_ND_BORDER_ROUTER \
-                         MODULE_GNRC_UDP
+                         MODULE_GNRC_UDP \
+                         RIOT_FILE_RELATIVE
 
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
@@ -2286,7 +2304,7 @@ DIRECTORY_GRAPH        = NO
 # The default value is: png.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_IMAGE_FORMAT       = png
+DOT_IMAGE_FORMAT       = svg
 
 # If DOT_IMAGE_FORMAT is set to svg, then this option can be set to YES to
 # enable generation of interactive SVG images that allow zooming and panning.
@@ -2344,7 +2362,7 @@ PLANTUML_JAR_PATH      =
 # Minimum value: 0, maximum value: 10000, default value: 50.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_GRAPH_MAX_NODES    = 50
+DOT_GRAPH_MAX_NODES    = 250
 
 # The MAX_DOT_GRAPH_DEPTH tag can be used to set the maximum depth of the graphs
 # generated by dot. A depth value of 3 means that only nodes reachable from the

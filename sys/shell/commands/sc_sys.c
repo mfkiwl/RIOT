@@ -18,14 +18,42 @@
  * @}
  */
 
-#include "kernel.h"
+#include <stdio.h>
+
+#include "periph/pm.h"
+
+#ifdef MODULE_USB_BOARD_RESET
+#include "usb_board_reset.h"
+#endif
 
 int _reboot_handler(int argc, char **argv)
 {
     (void) argc;
     (void) argv;
 
-    (void) reboot(RB_AUTOBOOT);
+    pm_reboot();
+
+    return 0;
+}
+
+#ifdef MODULE_USB_BOARD_RESET
+int _bootloader_handler(int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    usb_board_reset_in_bootloader();
+
+    return 0;
+}
+#endif
+
+int _version_handler(int argc, char **argv)
+{
+    (void) argc;
+    (void) argv;
+
+    puts(RIOT_VERSION);
 
     return 0;
 }

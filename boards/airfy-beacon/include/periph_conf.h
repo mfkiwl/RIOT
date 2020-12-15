@@ -1,9 +1,9 @@
 /*
  * Copyright (C) 2014 Christian Mehlis <mehlis@inf.fu-berlin.de>
  *
- * This file is subject to the terms and conditions of the GNU Lesser General
- * Public License v2.1. See the file LICENSE in the top level directory for more
- * details.
+ * This file is subject to the terms and conditions of the GNU Lesser
+ * General Public License v2.1. See the file LICENSE in the top level
+ * directory for more details.
  */
 
 /**
@@ -17,65 +17,22 @@
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef PERIPH_CONF_H_
-#define PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
+
+#include "periph_cpu.h"
+#include "cfg_clock_16_1.h"
+#include "cfg_timer_012.h"
+#include "cfg_rtt_default.h"
 
 #ifdef __cplusplus
  extern "C" {
 #endif
 
 /**
- * @name Clock configuration
+ * @name    UART configuration
  *
- * @note: the radio will not work with the internal RC oscillator!
- *
- * @{
- */
-#define CLOCK_CORECLOCK     (16000000U)     /* fixed for all NRF51822 */
-#define CLOCK_CRYSTAL       (16U)           /* set to  0: internal RC oscillator
-                                                      16: 16MHz crystal
-                                                      32: 32MHz crystal */
-/** @} */
-
-/**
- * @name Timer configuration
- * @{
- */
-#define TIMER_NUMOF         (1U)
-#define TIMER_0_EN          1
-#define TIMER_1_EN          0
-#define TIMER_2_EN          0
-#define TIMER_IRQ_PRIO      1
-
-/* Timer 0 configuration */
-#define TIMER_0_DEV         NRF_TIMER0
-#define TIMER_0_CHANNELS    3
-#define TIMER_0_MAX_VALUE   (0xffffff)
-#define TIMER_0_BITMODE     TIMER_BITMODE_BITMODE_24Bit     /* only possible value for TIMER0 */
-#define TIMER_0_ISR         isr_timer0
-#define TIMER_0_IRQ         TIMER0_IRQn
-
-/* Timer 1 configuration */
-#define TIMER_1_DEV         NRF_TIMER1
-#define TIMER_1_CHANNELS    3
-#define TIMER_1_MAX_VALUE   (0xffff)
-#define TIMER_1_BITMODE     TIMER_BITMODE_BITMODE_16Bit
-#define TIMER_1_ISR         isr_timer1
-#define TIMER_1_IRQ         TIMER1_IRQn
-
-/* Timer 2 configuration */
-#define TIMER_2_DEV         NRF_TIMER2
-#define TIMER_2_CHANNELS    3
-#define TIMER_2_MAX_VALUE   (0xffff)
-#define TIMER_2_BITMODE     TIMER_BITMODE_BITMODE_16Bit
-#define TIMER_2_ISR         isr_timer2
-#define TIMER_2_IRQ         TIMER2_IRQn
-/** @} */
-
-/**
- * @name UART configuration
- *
- * The CPU only supports one UART device, so we keep it simple
+ *          The CPU only supports one UART device, so we keep it simple
  * @{
  */
 #define UART_NUMOF          (1U)
@@ -84,70 +41,58 @@
 /** @} */
 
 /**
- * @name Real time counter configuration
+ * @name    SPI configuration
  * @{
  */
-#define RTT_NUMOF           (1U)
-#define RTT_IRQ_PRIO        1
+static const spi_conf_t spi_config[] = {
+    {
+        .dev  = NRF_SPI0,
+        .sclk = 15,
+        .mosi = 13,
+        .miso = 14
+    }
+};
 
-#define RTT_DEV             NRF_RTC1
-#define RTT_IRQ             RTC1_IRQn
-#define RTT_ISR             isr_rtc1
-#define RTT_MAX_VALUE       (0xffffff)
-#define RTT_FREQUENCY       (10)            /* in Hz */
-#define RTT_PRESCALER       (3275U)         /* run with 10 Hz */
+#define SPI_NUMOF           ARRAY_SIZE(spi_config)
 /** @} */
 
 /**
- * @name Random Number Generator configuration
+ * @name    I2C (TWI) configuration
  * @{
  */
-#define RANDOM_NUMOF        (1U)
+static const i2c_conf_t i2c_config[] = {
+    {
+        .dev     = NRF_TWI0,
+        .pin_scl = 7,
+        .pin_sda = 8,
+        .ppi     = 0,
+        .speed   = I2C_SPEED_NORMAL,
+    },
+    {
+        .dev     = NRF_TWI1,
+        .pin_scl = 9,
+        .pin_sda = 10,
+        .ppi     = 1,
+        .speed   = I2C_SPEED_NORMAL,
+    }
+};
+
+#define I2C_NUMOF           ARRAY_SIZE(i2c_config)
 /** @} */
 
 /**
- * @name SPI configuration
- * @{
- */
-#define SPI_NUMOF           (1U)
-#define SPI_0_EN            1
-#define SPI_IRQ_PRIO        1
-
-/* SPI_0 device configuration */
-#define SPI_0_DEV           NRF_SPI0
-#define SPI_0_PIN_MOSI      13
-#define SPI_0_PIN_MISO      14
-#define SPI_0_PIN_SCK       15
-/** @} */
-
-/**
- * @name ADC configuration
- * @{
- */
-#define ADC_NUMOF           (1U)
-#define ADC_0_EN            1
-#define ADC_MAX_CHANNELS    4
-
-/* ADC 0 device configuration */
-#define ADC_0_CHANNELS      4
-#define ADC_0_CH0           ADC_CONFIG_PSEL_AnalogInput3
-#define ADC_0_CH1           ADC_CONFIG_PSEL_AnalogInput4
-#define ADC_0_CH2           ADC_CONFIG_PSEL_AnalogInput5
-#define ADC_0_CH3           ADC_CONFIG_PSEL_AnalogInput6
-/** @} */
-
-/**
- * @name Radio device configuration
+ * @name    ADC configuration
  *
- * The radio is not guarded by a NUMOF define, as the radio is selected by its
- * own module in the build system.
+ * The configuration consists simply of a list of channels that should be used
  * @{
  */
-#define RADIO_IRQ_PRIO      1
+static const adc_conf_t adc_config[] = {3, 4, 5, 6};
+
+#define ADC_NUMOF           ARRAY_SIZE(adc_config)
 /** @} */
 
 #ifdef __cplusplus
 } /* end extern "C" */
 #endif
 
-#endif /* PERIPH_CONF_H_ */
+#endif /* PERIPH_CONF_H */

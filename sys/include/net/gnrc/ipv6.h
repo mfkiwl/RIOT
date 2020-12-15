@@ -11,10 +11,80 @@
  * @ingroup     net_gnrc
  * @brief       GNRC's IPv6 implementation
  *
- * The IPv6 control thread understands messages of type
+ * This module is for usage with the @ref net_gnrc_netapi
  *
- *  * @ref GNRC_NETAPI_MSG_TYPE_RCV, and
- *  * @ref GNRC_NETAPI_MSG_TYPE_SND,
+ * # Supported NETAPI commands
+ *
+ * This module handles the following @ref net_gnrc_netapi message types:
+ *
+ * ## `GNRC_NETAPI_MSG_TYPE_RCV`
+ *
+ * @ref GNRC_NETAPI_MSG_TYPE_RCV expects a @ref net_gnrc_pkt (referred to as
+ * "packet" in the following) in receive order (payload first, headers ordered
+ * down the stack). It must at least contain a link-layer payload starting
+ * with a valid @ref net_ipv6_hdr. If it contains a @ref net_gnrc_netif_hdr this
+ * header will be taken into account.
+ *
+ * If the link-layer payload is not an IPv6 packet (starting with a 0x6
+ * half-byte) or the module is not able to parse it correctly it will be
+ * dropped. If the packet can't be forwarded (either to another node or an upper
+ * layer) it will be dropped. Otherwise, there are two scenarios of success:
+ *
+ * 1. If the destination address is an address on this host, and a suitable
+ *    upper layer is registered the packet will be forwarded to that upper
+ *    layer. An upper layer is suitable with its registration if
+ *
+ *      - it is registered with a tuple (@ref GNRC_NETTYPE_IPV6, `nh`), or
+ *      - it is registered with a tuple (@ref gnrc_nettype_from_protnum(`nh`),
+ *        @ref GNRC_NETREG_DEMUX_CTX_ALL).
+ *
+ *    In both cases `nh` is the [next header field of one of the IPv6 header]
+ *    (@ref ipv6_hdr_t::nh) or the [next header field of one of the IPv6
+ *    extension headers](@ref ipv6_ext_t::nh) within the packet. The IPv6 header
+ *    and every IPv6 extension header between the IPv6 header and the payload
+ *    will be marked as separate @ref gnrc_pktsnip_t (i.e. the IPv6 payload will
+ *    be the first snip due to receive order). Note, that IPv6-internal headers
+ *    (such as ICMPv6 and extension headers) are handled within this module. If
+ *    the [`gnrc_ipv6_ext`](@ref net_gnrc_ipv6_ext) module is not present, IPv6
+ *    extension headers can't be parsed, so the packet might not be read
+ *    properly.
+ * 2. If the receiving network interface (indicated by the
+ *    gnrc_netif_hdr_t::if_pid if provided or the destination address in the
+ *    IPv6 header) is configured as a forwarding interface, the destination is
+ *    not an address on this host, and a route is configured for the destination
+ *    the packet will be forwarded. In consequence, the module will emit a
+ *    @ref GNRC_NETAPI_MSG_TYPE_SND with the packet reversed into send order and
+ *    the (if necessary prepended) gnrc_netif_hdr_t::if_pid has the appropriate
+ *    link-layer destination addresses to the next hop towards the destination.
+ *
+ * ## `GNRC_NETAPI_MSG_TYPE_SND`
+ *
+ * @ref GNRC_NETAPI_MSG_TYPE_SND expects a @ref net_gnrc_pkt (referred to as
+ * "packet" in the following) in send order (headers ordered up the stack,
+ * payload last). It must at least contain a snip of type @ref GNRC_NETTYPE_IPV6
+ * as its first or second snip. If the first snip is not of type
+ * @ref GNRC_NETTYPE_IPV6, it must be of type @ref GNRC_NETTYPE_NETIF.
+ *
+ * If the destination address within the @ref GNRC_NETTYPE_IPV6 snip is an
+ * address on this host or the loopback address `::1`, the packet will be
+ * [reversed](@ref gnrc_pktbuf_reverse_snips()) and
+ * [merged](@ref gnrc_pktbuf_merge()) so that it has a format as though it came
+ * from a network interface. It will then be handled as a received packet
+ * ("looped back") by the IPv6 module (see previous section).
+ *
+ * Otherwise, if a route (or neighbor cache entry) to the IPv6 destination
+ * address exists, the IPv6 header will be filled for fields that were not set
+ * by upper layers and handed over to the link-layer (L2) with the L2
+ * destination address set to the L2 address associated to that IPv6 destination
+ * address.
+ *
+ * ## `GNRC_NETAPI_MSG_TYPE_SET`
+ *
+ * `GNRC_NETAPI_MSG_TYPE_SET` is not supported.
+ *
+ * ## `GNRC_NETAPI_MSG_TYPE_GET`
+ *
+ * `GNRC_NETAPI_MSG_TYPE_GET` is not supported.
  *
  * @{
  *
@@ -26,18 +96,17 @@
  */
 
 
-#ifndef GNRC_IPV6_H_
-#define GNRC_IPV6_H_
+#ifndef NET_GNRC_IPV6_H
+#define NET_GNRC_IPV6_H
 
-#include "kernel_types.h"
+#include "sched.h"
 #include "net/gnrc.h"
 #include "thread.h"
 
 #include "net/ipv6.h"
 #include "net/gnrc/ipv6/ext.h"
 #include "net/gnrc/ipv6/hdr.h"
-#include "net/gnrc/ipv6/nc.h"
-#include "net/gnrc/ipv6/netif.h"
+#include "net/gnrc/ipv6/nib.h"
 
 #ifdef MODULE_FIB
 #include "net/fib.h"
@@ -47,6 +116,13 @@
 extern "C" {
 #endif
 
+
+/**
+ * @defgroup    net_gnrc_ipv6_conf  GNRC IPv6 compile configurations
+ * @ingroup     net_gnrc_ipv6
+ * @ingroup     net_gnrc_conf
+ * @{
+ */
 /**
  * @brief   Default stack size to use for the IPv6 thread
  */
@@ -62,10 +138,42 @@ extern "C" {
 #endif
 
 /**
- * @brief   Default message queue size to use for the IPv6 thread.
+ * @brief   Default message queue size to use for the IPv6 thread (as exponent
+ *          of 2^n).
+ *
+ *          As the queue size ALWAYS needs to be power of two, this option
+ *          represents the exponent of 2^n, which will be used as the size of
+ *          the queue.
+ */
+#ifndef CONFIG_GNRC_IPV6_MSG_QUEUE_SIZE_EXP
+#define CONFIG_GNRC_IPV6_MSG_QUEUE_SIZE_EXP    (3U)
+#endif
+
+#ifdef DOXYGEN
+/**
+ * @brief   Add a static IPv6 link local address to any network interface
+ *
+ * This macro allows to specify a certain link local IPv6 address to be assigned
+ * to a network interface on startup, which might be handy for testing.
+ * Note: a) a interface will keep its auto-generated link local address, too
+ *       b) the address is incremented by 1, if multiple interfaces are present
+ *
+ * To use the macro just add it to `CFLAGS` in the application's Makefile, like:
+ *
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ * IPV6_STATIC_LLADDR ?= '"fe80::cafe:cafe:cafe:1"'
+ * CFLAGS += -DGNRC_IPV6_STATIC_LLADDR=$(STATIC_IPV6_LLADDR)
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ */
+#define GNRC_IPV6_STATIC_LLADDR
+#endif /* DOXYGEN */
+/** @} */
+
+/**
+ * @brief Message queue size to use for the IPv6 thread.
  */
 #ifndef GNRC_IPV6_MSG_QUEUE_SIZE
-#define GNRC_IPV6_MSG_QUEUE_SIZE    (8U)
+#define GNRC_IPV6_MSG_QUEUE_SIZE    (1 << CONFIG_GNRC_IPV6_MSG_QUEUE_SIZE_EXP)
 #endif
 
 /**
@@ -110,24 +218,25 @@ extern fib_table_t gnrc_ipv6_fib_table;
 kernel_pid_t gnrc_ipv6_init(void);
 
 /**
- * @brief   Demultiplexes a packet according to @p nh.
+ * @brief   Get the IPv6 header from a given list of @ref gnrc_pktsnip_t
  *
- * @internal
+ *          This function may be used with e.g. a pointer to a (full) UDP datagram.
  *
- * **Do not use outside this module or its submodules!!!**
- * Public access needed for Extension Headers.
+ * @pre Any @ref GNRC_NETTYPE_IPV6 snip in pkt is contains a full IPv6 header.
  *
- * @param[in] iface     The receiving interface.
- * @param[in] pkt       A packet.
- * @param[in] nh        A protocol number (see @ref net_protnum).
+ * @param[in] pkt    The pointer to the first @ref gnrc_pktsnip_t of the
+ *                   packet.
+ *
+ * @return A pointer to the @ref ipv6_hdr_t of the packet.
+ * @return NULL if the packet does not contain an IPv6 header.
  */
-void gnrc_ipv6_demux(kernel_pid_t iface, gnrc_pktsnip_t *pkt, uint8_t nh);
+ipv6_hdr_t *gnrc_ipv6_get_header(gnrc_pktsnip_t *pkt);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* GNRC_IPV6_H_ */
+#endif /* NET_GNRC_IPV6_H */
 /**
  * @}
  */

@@ -20,13 +20,14 @@
 
 #include <string>
 #include <cstdio>
-#include <cassert>
 #include <system_error>
 
 #include "riot/mutex.hpp"
 #include "riot/chrono.hpp"
 #include "riot/thread.hpp"
 #include "riot/condition_variable.hpp"
+
+#include "test_utils/expect.h"
 
 using namespace std;
 using namespace riot;
@@ -52,8 +53,8 @@ int main() {
     data = "Example data";
     {
       lock_guard<mutex> lk(m);
-      // reason: variable is read in the thread created above
-      /* cppcheck-suppress unreadVariable */
+      /* cppcheck-suppress unreadVariable
+       * (reason: variable is read in the thread created above) */
       ready = true;
       cv.notify_one();
     }
@@ -62,7 +63,7 @@ int main() {
       cv.wait(lk, [&processed] { return processed; });
     }
     string expected = "Example data after processing";
-    assert(data == expected);
+    expect(data == expected);
     worker.join();
   }
   puts("Done\n");
@@ -102,7 +103,7 @@ int main() {
     cv.wait_for(lk, chrono::seconds(timeout));
     xtimer_now_timex(&after);
     auto diff = timex_sub(after, before);
-    assert(diff.seconds >= timeout);
+    expect(diff.seconds >= timeout);
   }
   puts("Done\n");
 
@@ -119,7 +120,7 @@ int main() {
     cv.wait_until(lk, time);
     xtimer_now_timex(&after);
     auto diff = timex_sub(after, before);
-    assert(diff.seconds >= timeout);
+    expect(diff.seconds >= timeout);
   }
   puts("Done\n");
 

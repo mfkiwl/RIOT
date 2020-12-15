@@ -13,15 +13,15 @@ List all currently connected USB to serial adapters by searching through
 
     ./find-tty.sh [serial_regex1] [serial_regex2] ... [serial_regexZ]
 
-Write to `stdout` the first tty connected to the chosen programmer.
+Write to `stdout` all ttys connected to the chosen programmer.
 `serial_regexN` are extended regular expressions (as understood by `egrep`)
 containing a pattern matched against the USB device serial number. Each of the
-given expressions are tested, against each serial number until a match has been
-found.
+given expressions are tested, against each serial number, and matching ttys are
+output (one tty per line).
 
 In order to search for an exact match against the device serial, use
 '^serialnumber$' as the pattern. If no pattern is given, `find-tty.sh` returns
-the first found USB tty (in an arbitrary order, this is not guaranteed to be
+all found USB ttys (in an arbitrary order, this is not guaranteed to be
 the `/dev/ttyUSBX` with the lowest number).
 
 Serial strings from all connected USB ttys can be found from the list generated
@@ -41,29 +41,14 @@ solution):
     # Add serial matching command
     ifneq ($(PROGRAMMER_SERIAL),)
       OOCD_BOARD_FLAGS += -c 'ftdi_serial $(PROGRAMMER_SERIAL)'
-
-      ifeq ($(PORT),)
-        # try to find tty name by serial number, only works on Linux currently.
-        ifeq ($(OS),Linux)
-          PORT := $(shell $(RIOTBASE)/dist/tools/usb-serial/find-tty.sh "^$(PROGRAMMER_SERIAL)$$")
-        endif
-      endif
     endif
 
-    # Fallback PORT if no serial was specified or if the specified serial was not found
-    ifeq ($(PORT),)
-        ifeq ($(OS),Linux)
-          PORT := $(shell $(RIOTBASE)/dist/tools/usb-serial/find-tty.sh)
-        else ifeq ($(OS),Darwin)
-          PORT := $(shell ls -1 /dev/tty.SLAB_USBtoUART* | head -n 1)
-        endif
-    endif
+    PORT_LINUX_EXACT = $(if $(PROGRAMMER_SERIAL),$(firstword $(shell $(RIOTTOOLS)/usb-serial/find-tty.sh "^$(PROGRAMMER_SERIAL)$$")),)
 
-    # TODO: add support for windows as host platform
-    ifeq ($(PORT),)
-      $(info CAUTION: No terminal port for your host system found!)
-    endif
-    export PORT
+    PORT_LINUX = $(if $(PORT_LINUX_EXACT),$(PORT_LINUX_EXACT),$(firstword $(shell $(RIOTTOOLS)/usb-serial/find-tty.sh)))
+
+    PORT_DARWIN = $(shell ls -1 /dev/tty.SLAB_USBtoUART* | head -n 1)
+
 
 
 Limitations

@@ -7,7 +7,7 @@
  */
 
 /**
- * @defgroup    driver_mq3 MQ-3 Alcohol Tester
+ * @defgroup    drivers_mq3 MQ-3 Alcohol Tester
  * @ingroup     drivers_sensors
  * @brief       Device driver for the MQ-3 alcohol sensor
  * @{
@@ -27,18 +27,20 @@
 extern "C" {
 #endif
 
+/**
+ * @brief   maximum unprocessed value fetched form the sensor
+ */
 #define MQ3_MAX_RAW_VALUE           (1023U)
 
 /**
- * @brief device descriptor for a MQ-3 sensor
+ * @brief   device descriptor for a MQ-3 sensor
  */
 typedef struct {
-    adc_t adc_dev;          /**< the used ADC device */
-    int adc_chan;           /**< used channel of the ADC */
+    adc_t adc_line;         /**< the used ADC line */
 } mq3_t;
 
 /**
- * @brief Initialize a MQ-3 alcohol sensor
+ * @brief   Initialize a MQ-3 alcohol sensor
  *
  * The MQ-3 sensor is interfaced by a single ADC pin, specified by `adc` and `channel`.
  *
@@ -46,31 +48,30 @@ typedef struct {
  *       can be made.
  *
  * @param[out] dev      device descriptor of an MQ-3 sensor
- * @param[in] adc       the ADC device the sensor is connected to
- * @param[in] channel   the channel of the ADC device used
+ * @param[in] adc_line  the ADC device the sensor is connected to
  *
  * @return              0 on success
  * @return              -1 on error
  */
-int mq3_init(mq3_t *dev, adc_t adc, int channel);
+int mq3_init(mq3_t *dev, adc_t adc_line);
 
 /**
- * @brief Read the RAW sensor value, can be between 0 and MQ3_MAX_RAW_VALUE
+ * @brief   Read the RAW sensor value, can be between 0 and MQ3_MAX_RAW_VALUE
  *
  * @param[in] dev       device descriptor of the MQ-3 sensor to read from
  *
  * @return              the raw sensor value, between 0 and MQ3_MAX_RAW_VALUE
  */
-int mq3_read_raw(mq3_t *dev);
+int mq3_read_raw(const mq3_t *dev);
 
 /**
- * @brief Read the scaled sensor value of PPM of alcohol
+ * @brief   Read the scaled sensor value of PPM of alcohol
  *
  * @param[in] dev       device descriptor of the MQ-3 sensor to read from
  *
  * @return              the scaled sensor value in PPM of alcohol
  */
-int mq3_read(mq3_t *dev);
+int mq3_read(const mq3_t *dev);
 
 #ifdef __cplusplus
 }

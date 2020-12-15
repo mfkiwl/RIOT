@@ -1,5 +1,7 @@
 # Object files
 *.o
+# Target files
+*.elf
 # Documentation artifacts
 doc/doxygen/html
 doc/doxygen/latex
@@ -9,10 +11,17 @@ doc/doxygen/*.db
 doc/doxygen/*.tmp
 # Built binaries
 *bin
+# Build directory
+/build
+# AFL findings
+fuzzing/**/findings/
 # Backup files
 *~
 *.orig
+.*.swn
+.*.swo
 .*.swp
+\#*\#
 cachegrind.out*
 # Eclipse workspace files
 .project
@@ -24,6 +33,8 @@ cachegrind.out*
 *.kdev4
 # Codelite (among others) project files
 *.project
+# Visual Studio Code user settings
+.vscode/
 # ctags index files
 tags
 # GDB initialization scripts
@@ -38,19 +49,6 @@ _sketches.cpp
 # local override files
 Makefile.local
 
-# downloaded package sources
-pkg/ccn-lite/ccn-lite
-pkg/cmsis-dsp/cmsis-dsp
-pkg/libcoap/libcoap
-pkg/libfixmath/libfixmath
-pkg/microcoap/microcoap
-pkg/micro-ecc/micro-ecc
-pkg/oonf_api/oonf_api
-pkg/openwsn/openwsn
-pkg/relic/relic
-pkg/tlsf/tlsf
-pkg/wakaama/wakaama
-
 # Vagrant
 .vagrant
 
@@ -58,4 +56,28 @@ pkg/wakaama/wakaama
 .clang_complete
 # YouCompleteMe (https://github.com/Valloric/YouCompleteMe)
 .ycm_extra_conf.py
-.ycm_extra_conf.pyc
+
+# Python compiled files
+*.pyc
+
+# Ignore download cache
+.dlcache
+
+# scan-build artifacts
+scan-build/
+
+# compile_and_test_for_boards default "results" directory
+results/
+
+# mypy artifacts
+.mypy_cache/
+
+# Clangd compile flags (language server)
+compile_commands.json
+compile_flags.txt
+
+# suit manifest keys
+keys/
+
+# clangd language server
+.clangd/

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
+ * Copyright (C) 2013 - 2016 Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -7,8 +7,8 @@
  */
 
 /**
- * @ingroup arch
- * @defgroup    native_cpu  Native
+ * @ingroup cpu
+ * @defgroup    cpu_native  Native
  * @brief       Native CPU specific code
  * @details     The native CPU uses system calls to simulate hardware access.
  * @ingroup     cpu
@@ -17,8 +17,8 @@
  * @author  Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
  */
 
-#ifndef _CPU_H
-#define _CPU_H
+#ifndef CPU_H
+#define CPU_H
 
 #include <stdio.h>
 
@@ -27,13 +27,20 @@ extern "C" {
 #endif
 
 /**
- * @brief   Prints the last instruction's address
+ * @brief   The CPU supports unaligned memory access.
+ *          Even if the underlying architecture does not support it, the kernel will take care of it.
  */
-static inline void cpu_print_last_instruction(void)
+#define CPU_HAS_UNALIGNED_ACCESS
+
+/**
+ * @brief   Prints the address the callee will return to
+ */
+__attribute__((always_inline)) static inline void cpu_print_last_instruction(void)
 {
-    void *p;
-    __asm__("1: mov 1b, %0" : "=r" (p));
-    printf("%p\n", p);
+    /* __builtin_return_address will return the address the calling function
+     * will return to - since cpu_print_last_instruction is forced inline,
+     * it is the return address of the user of this function */
+    printf("%p\n", __builtin_return_address(0));
 }
 
 #ifdef __cplusplus
@@ -41,4 +48,4 @@ static inline void cpu_print_last_instruction(void)
 #endif
 
 /** @} */
-#endif //_CPU_H
+#endif /* CPU_H */

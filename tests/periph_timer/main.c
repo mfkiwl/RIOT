@@ -32,16 +32,18 @@
 #endif
 
 #define MAX_CHANNELS        (10U)
-#define TIM_SPEED           (1U)        /* try to run with 1MHz */
 #define CHAN_OFFSET         (5000U)     /* fire every 5ms */
+#define COOKIE              (100U)      /* for checking if arg is passed */
 
 static volatile int fired;
 static volatile uint32_t sw_count;
 static volatile uint32_t timeouts[MAX_CHANNELS];
+static volatile unsigned args[MAX_CHANNELS];
 
-static void cb(int chan)
+static void cb(void *arg, int chan)
 {
     timeouts[chan] = sw_count;
+    args[chan] = (unsigned)arg + chan;
     fired++;
 }
 
@@ -54,10 +56,11 @@ static int test_timer(unsigned num)
     fired = 0;
     for (unsigned i = 0; i < MAX_CHANNELS; i++) {
         timeouts[i] = 0;
+        args[i] = UINT_MAX;
     }
 
     /* initialize and halt timer */
-    if (timer_init(TIMER_DEV(num), TIM_SPEED, cb) < 0) {
+    if (timer_init(TIMER_DEV(num), TIMER_SPEED, cb, (void *)(COOKIE * num)) < 0) {
         printf("TIMER_%u: ERROR on initialization - skipping\n\n", num);
         return 0;
     }
@@ -90,6 +93,10 @@ static int test_timer(unsigned num)
     } while (fired != set);
     /* collect results */
     for (int i = 0; i < fired; i++) {
+        if (args[i] != ((COOKIE * num) + i)) {
+            printf("TIMER_%u: ERROR callback argument mismatch\n\n", num);
+            return 0;
+        }
         printf("TIMER_%u: channel %i fired at SW count %8u",
                num, i, (unsigned)timeouts[i]);
         if (i == 0) {
@@ -107,16 +114,6 @@ int main(void)
     int res = 0;
 
     puts("\nTest for peripheral TIMERs\n");
-    puts("This test will test all configured peripheral timers of the\n"
-         "targeted platform. For each timer, it will set each channel with\n"
-         "an incrementing timeout. CH0 set to 5ms, CH1 to 10ms, CH2 to 15ms\n"
-         "and so on.\n"
-         "In the output you should see that every channel fired, after an\n"
-         "evenly distributed amount of time -> the shown diff values should\n"
-         "be pretty much equal (to some jitter...)\n"
-         "This test does however NOT show, if the timeouts were correct in\n"
-         "relation to the expected real-time ~ use e.g. tests/xtimer_msg for\n"
-         "this.\n\n");
 
     printf("Available timers: %i\n", TIMER_NUMOF);
 

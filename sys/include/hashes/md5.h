@@ -19,7 +19,7 @@
 
 /**
  * @defgroup    sys_hashes_md5 MD5
- * @ingroup     sys_hashes
+ * @ingroup     sys_hashes_unkeyed
  * @brief       Implementation of the MD5 hashing function
  *
  *  None of this will make any sense unless you're studying RFC 1321 as you
@@ -69,8 +69,7 @@ extern "C" {
 /**
  * @brief   MD5 calculation context
  */
-typedef struct
-{
+typedef struct {
     uint32_t len;       /**< overall number of bytes processed */
     uint32_t abcd[4];   /**< virtual registers for hash calculation */
     int b_used;         /**< number of bytes used in the current block */
@@ -102,24 +101,24 @@ void md5_init(md5_ctx_t *ctx);
  * @param[in] data      Input data
  * @param[in] len       Length of @p data
  */
-void md5_update(md5_ctx_t *ctx, const uint8_t *data, size_t len);
+void md5_update(md5_ctx_t *ctx, const void *data, size_t len);
 
 /**
  * @brief   Finish up the current MD5 hash calculation generate the final hash
  *
  * @param[in] ctx       Context of the current calculation
- * @param[out] dst      Result location, must be 16 byte
+ * @param[out] digest   Result location, must be 16 byte
  */
-void md5_final(md5_ctx_t *ctx, uint8_t *dst);
+void md5_final(md5_ctx_t *ctx, void *digest);
 
 /**
  * @brief   Calculate a MD5 hash from the given data
  *
- * @param[out] dst      Result location, must be 16 byte
- * @param[in] src       Input data
- * @param[in] len       Length of @p src
+ * @param[out] digest Result location, must be 16 byte
+ * @param[in] data    Input data
+ * @param[in] len     Length of @p src
  */
-void md5(uint8_t *dst, const uint8_t *src, size_t len);
+void md5(void *digest, const void *data, size_t len);
 
 #ifdef __cplusplus
 }

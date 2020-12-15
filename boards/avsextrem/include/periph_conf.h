@@ -16,71 +16,73 @@
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef PERIPH_CONF_H_
-#define PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
 
-#include "lpc2387.h"
+#include "periph_cpu.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief   Clock configuration
+ * @name    Clock configuration
  * @{
  */
+#define XTAL_HZ             (16000000U)         /* the board provides a 16 MHz XTAL */
+
 #define CLOCK_CORECLOCK     (72000000U)         /* this board runs with 72MHz */
 
 #define CLOCK_PCLK          (CLOCK_CORECLOCK)
 /** @} */
 
 /**
- * @brief   Timer configuration, select a number from 1 to 4
+ * @name    Timer configuration, select a number from 1 to 4
  * @{
  */
 #define TIMER_NUMOF         (1U)
 /** @} */
 
 /**
- * @brief PWM device and pinout configuration
+ * @name    UART configuration
+ * @{
  */
-#define PWM_NUMOF           (0)         /* disable PWM for now as no pins are specified */
-#define PWM_0_EN            (0)
+static const uart_conf_t uart_config[] = {
+    {
+        .dev = UART0,
+        .irq_prio_rx = 6,
+        .pinsel_rx   = 0,
+        .pinsel_tx   = 0,
+        .pinsel_msk_rx = BIT4,
+        .pinsel_msk_tx = BIT6,
+    }
+};
 
-/* PWM_0 device configuration */
-#define PWM_0_CH0           (3)         /* TODO: adjust pins for avsextrem */
-#define PWM_0_CH0_MR        PWM1MR3
-#define PWM_0_CH1           (4)
-#define PWM_0_CH1_MR        PWM1MR4
-#define PWM_0_CH2           (5)
-#define PWM_0_CH2_MR        PWM1MR5
-/* PWM_0 pin configuration */
-#define PWM_0_PORT          PINSEL4
-#define PWM_0_CH0_PIN       (2)
-#define PWM_0_CH1_PIN       (3)
-#define PWM_0_CH2_PIN       (4)
-#define PWM_0_FUNC          (1)
-
-/**
- * @brief Real Time Clock configuration
- */
-#define RTC_NUMOF           (1)
-
-/**
- * @brief uart configuration
- */
 #define UART_NUMOF          (1)
-#define UART_0_EN           (1)
+/** @} */
 
 /**
- * @brief SPI configuration
+ * @name    SPI configuration
+ * @{
  */
+static const spi_conf_t spi_config[] = {
+    {
+        .dev = SPI0,
+        .pinsel_mosi = 3,
+        .pinsel_miso = 3,
+        .pinsel_clk  = 3,
+        .pinsel_msk_mosi = (BIT16 | BIT17),
+        .pinsel_msk_miso = (BIT14 | BIT15),
+        .pinsel_msk_clk  = (BIT8  | BIT9),
+    },
+};
+
 #define SPI_NUMOF           (1)
-#define SPI_0_EN            (1)
+/** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* PERIPH_CONF_H_ */
+#endif /* PERIPH_CONF_H */
 /** @} */

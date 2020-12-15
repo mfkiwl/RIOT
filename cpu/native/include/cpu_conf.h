@@ -7,14 +7,14 @@
  * General Public License v2.1. See the file LICENSE in the top level
  * directory for more details.
  *
- * @ingroup arch
+ * @ingroup cpu_native
  * @{
  * @file
  * @author  Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
  * @}
  */
-#ifndef CPUCONF_H_
-#define CPUCONF_H_
+#ifndef CPU_CONF_H
+#define CPU_CONF_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +36,7 @@ extern "C" {
 #define THREAD_STACKSIZE_MINIMUM            (163840)
 /* native internal */
 #define THREAD_STACKSIZE_MINIMUM            (163840)
-#define NATIVE_ISR_STACKSIZE                (163840)
+#define ISR_STACKSIZE                       (163840)
 
 #else /* Linux etc. */
 #define THREAD_STACKSIZE_DEFAULT            (8192)
@@ -46,7 +46,7 @@ extern "C" {
 /* for core/include/thread.h */
 #define THREAD_STACKSIZE_MINIMUM            (8192)
 /* native internal */
-#define NATIVE_ISR_STACKSIZE                (8192)
+#define ISR_STACKSIZE                       (8192)
 #endif /* OS */
 /** @} */
 
@@ -55,15 +55,13 @@ extern "C" {
  */
 #define NATIVE_ETH_PROTO 0x1234
 
-/**
- * @brief   Length of CPU ID for @ref cpu_id_get() in @ref periph/cpuid.h
- */
-#ifndef CPUID_ID_LEN
-#define CPUID_ID_LEN                    (4)
+#if (defined(CONFIG_GNRC_PKTBUF_SIZE)) && (CONFIG_GNRC_PKTBUF_SIZE < 2048)
+#   undef  CONFIG_GNRC_PKTBUF_SIZE
+#   define CONFIG_GNRC_PKTBUF_SIZE     (2048)
 #endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CPUCONF_H_ */
+#endif /* CPU_CONF_H */

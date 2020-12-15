@@ -19,9 +19,14 @@
 
 #include <stdio.h>
 
-#ifndef C_FUNCTIONS_H_
-#define C_FUNCTIONS_H_
+#ifndef C_FUNCTIONS_H
+#define C_FUNCTIONS_H
 
+
+/*
+ * all headers defining c functions must be marked as extern "C" when included
+ * into c++ sources
+ */
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,4 +52,4 @@ int day_of_week(int day, int month, int year);
 #endif
 
 /** @} */
-#endif // _C_FUNCTIONS_H
+#endif /* C_FUNCTIONS_H */

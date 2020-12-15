@@ -8,9 +8,7 @@
  */
 
 /**
- * @defgroup    board_frdm-k64f Freescale FRDM-K64F Board
- * @ingroup     boards
- * @brief       Board specific implementations for the FRDM-K64F
+ * @ingroup     boards_frdm-k64f
  * @{
  *
  * @file
@@ -31,62 +29,54 @@ extern "C"
 #endif
 
 /**
- * Define the nominal CPU core clock in this board
- */
-#define F_CPU               CLOCK_CORECLOCK
-
-/**
- * @name Define UART device and baudrate for stdio
+ * @name    LED pin definitions and handlers
  * @{
  */
-#define STDIO               UART_0
-#define STDIO_RX_BUFSIZE    (64U)
-#define STDIO_BAUDRATE      (115200U)
+#define LED0_PIN            GPIO_PIN(PORT_B, 22)
+#define LED1_PIN            GPIO_PIN(PORT_E, 26)
+#define LED2_PIN            GPIO_PIN(PORT_B, 21)
+
+#define LED0_MASK           (1 << 22)
+#define LED1_MASK           (1 << 26)
+#define LED2_MASK           (1 << 21)
+
+#define LED0_ON            (GPIOB->PCOR = LED0_MASK)
+#define LED0_OFF           (GPIOB->PSOR = LED0_MASK)
+#define LED0_TOGGLE        (GPIOB->PTOR = LED0_MASK)
+
+#define LED1_ON            (GPIOE->PCOR = LED1_MASK)
+#define LED1_OFF           (GPIOE->PSOR = LED1_MASK)
+#define LED1_TOGGLE        (GPIOE->PTOR = LED1_MASK)
+
+#define LED2_ON            (GPIOB->PCOR = LED2_MASK)
+#define LED2_OFF           (GPIOB->PSOR = LED2_MASK)
+#define LED2_TOGGLE        (GPIOB->PTOR = LED2_MASK)
 /** @} */
 
 /**
- * @name LED pin definitions
+ * @name    Button pin definitions
  * @{
  */
-#define LED_R_PORT_CLKEN()    (PORTB_CLOCK_GATE = 1) /**< Clock Enable for PORTD*/
-#define LED_G_PORT_CLKEN()    (PORTE_CLOCK_GATE = 1) /**< Clock Enable for PORTE*/
-#define LED_B_PORT_CLKEN()    (PORTB_CLOCK_GATE = 1) /**< Clock Enable for PORTB*/
-#define LED_R_PORT            PORTB /**< PORT for Red LED*/
-#define LED_R_GPIO            GPIOB /**< GPIO-Device for Red LED*/
-#define LED_G_PORT            PORTE /**< PORT for Green LED*/
-#define LED_G_GPIO            GPIOE /**< GPIO-Device for Green LED*/
-#define LED_B_PORT            PORTB /**< PORT for Blue LED*/
-#define LED_B_GPIO            GPIOB /**< GPIO-Device for Blue LED*/
-#define LED_R_PIN             22    /**< Red LED connected to PINx*/
-#define LED_G_PIN             26    /**< Green LED connected to PINx*/
-#define LED_B_PIN             21    /**< Blue LED connected to PINx*/
+/* SW2, SW3 will short these pins to ground when pushed. PTA4 has an external
+ * pull-up resistor to VDD, but there is no external pull resistor on PTC6 */
+/* BTN0 is mapped to SW2 */
+#define BTN0_PIN            GPIO_PIN(PORT_C,  6)
+#define BTN0_MODE           GPIO_IN_PU
+/* BTN1 is mapped to SW3 */
+#define BTN1_PIN            GPIO_PIN(PORT_A,  4)
+#define BTN1_MODE           GPIO_IN_PU
 /** @} */
 
 /**
- * @name Macros for controlling the on-board LEDs.
+ * @name    FXOS8700CQ 3-axis accelerometer and magnetometer bus configuration
  * @{
  */
-#define LED_B_ON            (LED_B_GPIO->PCOR = (1 << LED_B_PIN))
-#define LED_B_OFF           (LED_B_GPIO->PSOR = (1 << LED_B_PIN))
-#define LED_B_TOGGLE        (LED_B_GPIO->PTOR = (1 << LED_B_PIN))
-#define LED_G_ON            (LED_G_GPIO->PCOR = (1 << LED_G_PIN))
-#define LED_G_OFF           (LED_G_GPIO->PSOR = (1 << LED_G_PIN))
-#define LED_G_TOGGLE        (LED_G_GPIO->PTOR = (1 << LED_G_PIN))
-#define LED_R_ON            (LED_R_GPIO->PCOR = (1 << LED_R_PIN))
-#define LED_R_OFF           (LED_R_GPIO->PSOR = (1 << LED_R_PIN))
-#define LED_R_TOGGLE        (LED_R_GPIO->PTOR = (1 << LED_R_PIN))
-
-/* for compatability to other boards */
-#define LED_GREEN_ON        LED_G_ON
-#define LED_GREEN_OFF       LED_G_OFF
-#define LED_GREEN_TOGGLE    LED_G_TOGGLE
-#define LED_RED_ON          LED_R_ON
-#define LED_RED_OFF         LED_R_OFF
-#define LED_RED_TOGGLE      LED_R_TOGGLE
+#define FXOS8700_PARAM_I2C          I2C_DEV(0)
+#define FXOS8700_PARAM_ADDR         0x1E
 /** @} */
 
 /**
- * @brief Initialize board specific hardware, including clock, LEDs and std-IO
+ * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
  */
 void board_init(void);
 
@@ -94,5 +84,5 @@ void board_init(void);
 }
 #endif
 
-#endif /** BOARD_H */
+#endif /* BOARD_H */
 /** @} */

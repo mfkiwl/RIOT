@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     driver_mq3
+ * @ingroup     drivers_mq3
  * @{
  *
  * @file
@@ -24,19 +24,18 @@
 #define MIN                 (100U)              /* TODO: calibrate to useful value */
 #define FACTOR              (2.33f)             /* TODO: calibrate to useful value */
 
-int mq3_init(mq3_t *dev, adc_t adc, int channel)
+int mq3_init(mq3_t *dev, adc_t adc_line)
 {
-    dev->adc_dev = adc;
-    dev->adc_chan = channel;
-    return adc_init(dev->adc_dev, PRECISION);
+    dev->adc_line = adc_line;
+    return adc_init(dev->adc_line);
 }
 
-int mq3_read_raw(mq3_t *dev)
+int mq3_read_raw(const mq3_t *dev)
 {
-    return adc_sample(dev->adc_dev, dev->adc_chan);
+    return adc_sample(dev->adc_line, PRECISION);
 }
 
-int mq3_read(mq3_t *dev)
+int mq3_read(const mq3_t *dev)
 {
     float res = mq3_read_raw(dev);
     res = (res > MIN) ? res - MIN : 0;

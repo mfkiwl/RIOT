@@ -19,7 +19,7 @@
 #include "net/gnrc/sixlowpan/ctx.h"
 #include "xtimer.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 static gnrc_sixlowpan_ctx_t _ctxs[GNRC_SIXLOWPAN_CTX_SIZE];
@@ -29,9 +29,7 @@ static mutex_t _ctx_mutex = MUTEX_INIT;
 static uint32_t _current_minute(void);
 static void _update_lifetime(uint8_t id);
 
-#if ENABLE_DEBUG
 static char ipv6str[IPV6_ADDR_MAX_STR_LEN];
-#endif
 
 static inline bool _valid(uint8_t id)
 {
@@ -59,14 +57,15 @@ gnrc_sixlowpan_ctx_t *gnrc_sixlowpan_ctx_lookup_addr(const ipv6_addr_t *addr)
 
     mutex_unlock(&_ctx_mutex);
 
-#if ENABLE_DEBUG
-    if (res != NULL) {
-        DEBUG("6lo ctx: found context (%u, %s/%" PRIu8 ") ", res->id,
-              ipv6_addr_to_str(ipv6str, &res->prefix, sizeof(ipv6str)),
-              res->prefix_len);
-        DEBUG("for address %s\n", ipv6_addr_to_str(ipv6str, addr, sizeof(ipv6str)));
+    if (IS_ACTIVE(ENABLE_DEBUG)) {
+        if (res != NULL) {
+            DEBUG("6lo ctx: found context (%u, %s/%" PRIu8 ") ",
+                (res->flags_id & GNRC_SIXLOWPAN_CTX_FLAGS_CID_MASK),
+                ipv6_addr_to_str(ipv6str, &res->prefix, sizeof(ipv6str)),
+                res->prefix_len);
+            DEBUG("for address %s\n", ipv6_addr_to_str(ipv6str, addr, sizeof(ipv6str)));
+        }
     }
-#endif
 
     return res;
 }
@@ -132,7 +131,7 @@ gnrc_sixlowpan_ctx_t *gnrc_sixlowpan_ctx_update(uint8_t id, const ipv6_addr_t *p
 
 static uint32_t _current_minute(void)
 {
-    return xtimer_now() / (SEC_IN_USEC * 60);
+    return xtimer_now_usec() / (US_PER_SEC * 60);
 }
 
 static void _update_lifetime(uint8_t id)

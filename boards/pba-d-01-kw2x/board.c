@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     board_pba-d-01
+ * @ingroup     boards_pba-d-01-kw2x
  * @{
  *
  * @file
@@ -21,34 +21,51 @@
  */
 
 #include "board.h"
+#include "bit.h"
+#include "periph/gpio.h"
 
-static void leds_init(void);
+static inline void modem_clock_init(void)
+{
+    /* Use the CLK_OUT of the modem as the clock source. */
+
+    /* Enable GPIO clock gates */
+    KW2XDRF_PORT_CLKEN();
+    KW2XDRF_CLK_CTRL_CLKEN();
+
+    /* Modem RST_B is connected to PTB19 and can be used to reset the modem. */
+    KW2XDRF_PORT_DEV->PCR[KW2XDRF_RST_PIN] = PORT_PCR_MUX(1);
+    bit_set32(&KW2XDRF_GPIO->PDDR, KW2XDRF_RST_PIN);
+    KW2XDRF_GPIO->PCOR = (1 << KW2XDRF_RST_PIN);
+
+    /* Modem GPIO5 is connected to PTC0 and can be used to select CLK_OUT frequency, */
+    /* set PTC0 high for CLK_OUT=32.787kHz and low for CLK_OUT=4MHz. */
+    KW2XDRF_CLK_CTRL_PORT_DEV->PCR[KW2XDRF_CLK_CTRL_PIN] = PORT_PCR_MUX(1);
+    bit_set32(&KW2XDRF_CLK_CTRL_GPIO->PDDR, KW2XDRF_CLK_CTRL_PIN);
+    KW2XDRF_CLK_CTRL_GPIO->PCOR = (1 << KW2XDRF_CLK_CTRL_PIN);
+
+    /* Modem IRQ_B is connected to PTB3, modem interrupt request to the MCU. */
+    KW2XDRF_PORT_DEV->PCR[KW2XDRF_IRQ_PIN] = PORT_PCR_MUX(1);
+    bit_clear32(&KW2XDRF_GPIO->PDDR, KW2XDRF_IRQ_PIN);
+
+    /* release the reset */
+    KW2XDRF_GPIO->PSOR = (1 << KW2XDRF_RST_PIN);
+
+    /* wait for modem IRQ_B interrupt request */
+    while (KW2XDRF_GPIO->PDIR & (1 << KW2XDRF_IRQ_PIN));
+}
 
 void board_init(void)
 {
-    leds_init();
-    cpu_init();
-}
+    /* initialize the on-board LEDs */
+    gpio_init(LED0_PIN, GPIO_OUT);
+    gpio_set(LED0_PIN);
+    gpio_init(LED1_PIN, GPIO_OUT);
+    gpio_set(LED1_PIN);
+    gpio_init(LED2_PIN, GPIO_OUT);
+    gpio_set(LED2_PIN);
 
-/**
- * @brief Initialize the boards on-board RGB-LED
- *
- */
-static void leds_init(void)
-{
-    /* enable clock */
-    LED_B_PORT_CLKEN();
-    LED_G_PORT_CLKEN();
-    LED_R_PORT_CLKEN();
-    /* configure pins as gpio */
-    LED_B_PORT->PCR[LED_B_PIN] = PORT_PCR_MUX(1);
-    LED_G_PORT->PCR[LED_G_PIN] = PORT_PCR_MUX(1);
-    LED_R_PORT->PCR[LED_R_PIN] = PORT_PCR_MUX(1);
-    LED_B_GPIO->PDDR |= (1 << LED_B_PIN);
-    LED_G_GPIO->PDDR |= (1 << LED_G_PIN);
-    LED_R_GPIO->PDDR |= (1 << LED_R_PIN);
-    /* turn all LEDs off */
-    LED_B_GPIO->PSOR |= (1 << LED_B_PIN);
-    LED_G_GPIO->PSOR |= (1 << LED_G_PIN);
-    LED_R_GPIO->PSOR |= (1 << LED_R_PIN);
+    modem_clock_init();
+
+    /* initialize the CPU core */
+    cpu_init();
 }

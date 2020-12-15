@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     net_pktdump
+ * @ingroup     net_gnrc_pktdump
  * @{
  *
  * @file
@@ -25,11 +25,12 @@
 #include "byteorder.h"
 #include "thread.h"
 #include "msg.h"
-#include "kernel.h"
 #include "net/gnrc/pktdump.h"
 #include "net/gnrc.h"
+#include "net/icmpv6.h"
 #include "net/ipv6/addr.h"
 #include "net/ipv6/hdr.h"
+#include "net/tcp.h"
 #include "net/udp.h"
 #include "net/sixlowpan.h"
 #include "od.h"
@@ -37,7 +38,7 @@
 /**
  * @brief   PID of the pktdump thread
  */
-static kernel_pid_t _pid = KERNEL_PID_UNDEF;
+kernel_pid_t gnrc_pktdump_pid = KERNEL_PID_UNDEF;
 
 /**
  * @brief   Stack for the pktdump thread
@@ -46,55 +47,99 @@ static char _stack[GNRC_PKTDUMP_STACKSIZE];
 
 static void _dump_snip(gnrc_pktsnip_t *pkt)
 {
+    size_t hdr_len = 0;
+
     switch (pkt->type) {
-        case GNRC_NETTYPE_UNDEF:
-            printf("NETTYPE_UNDEF (%i)\n", pkt->type);
-            od_hex_dump(pkt->data, pkt->size, OD_WIDTH_DEFAULT);
-            break;
-#ifdef MODULE_GNRC_NETIF
         case GNRC_NETTYPE_NETIF:
             printf("NETTYPE_NETIF (%i)\n", pkt->type);
-            gnrc_netif_hdr_print(pkt->data);
+            if (IS_USED(MODULE_GNRC_NETIF_HDR)) {
+                gnrc_netif_hdr_print(pkt->data);
+                hdr_len = pkt->size;
+            }
             break;
-#endif
-#ifdef MODULE_GNRC_SIXLOWPAN
+        case GNRC_NETTYPE_UNDEF:
+            printf("NETTYPE_UNDEF (%i)\n", pkt->type);
+            break;
+#if IS_USED(MODULE_GNRC_NETTYPE_SIXLOWPAN)
         case GNRC_NETTYPE_SIXLOWPAN:
             printf("NETTYPE_SIXLOWPAN (%i)\n", pkt->type);
-            sixlowpan_print(pkt->data, pkt->size);
+            if (IS_USED(MODULE_SIXLOWPAN)) {
+                sixlowpan_print(pkt->data, pkt->size);
+                hdr_len = pkt->size;
+            }
             break;
-#endif
-#ifdef MODULE_GNRC_IPV6
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_SIXLOWPAN) */
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV6)
         case GNRC_NETTYPE_IPV6:
             printf("NETTYPE_IPV6 (%i)\n", pkt->type);
-            ipv6_hdr_print(pkt->data);
+            if (IS_USED(MODULE_IPV6_HDR)) {
+                ipv6_hdr_print(pkt->data);
+                hdr_len = sizeof(ipv6_hdr_t);
+            }
             break;
-#endif
-#ifdef MODULE_GNRC_ICMPV6
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_IPV6) */
+#if IS_USED(MODULE_GNRC_NETTYPE_IPV6_EXT)
+        case GNRC_NETTYPE_IPV6_EXT:
+            printf("NETTYPE_IPV6_EXT (%i)\n", pkt->type);
+            break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_IPV6_EXT) */
+#if IS_USED(MODULE_GNRC_NETTYPE_ICMPV6)
         case GNRC_NETTYPE_ICMPV6:
             printf("NETTYPE_ICMPV6 (%i)\n", pkt->type);
+            if (IS_USED(MODULE_ICMPV6)) {
+                icmpv6_hdr_print(pkt->data);
+                hdr_len = sizeof(icmpv6_hdr_t);
+            }
             break;
-#endif
-#ifdef MODULE_GNRC_TCP
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_ICMPV6) */
+#if IS_USED(MODULE_GNRC_NETTYPE_TCP)
         case GNRC_NETTYPE_TCP:
             printf("NETTYPE_TCP (%i)\n", pkt->type);
+            if (IS_USED(MODULE_TCP)) {
+                tcp_hdr_print(pkt->data);
+                hdr_len = sizeof(tcp_hdr_t);
+            }
             break;
-#endif
-#ifdef MODULE_GNRC_UDP
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_TCP) */
+#if IS_USED(MODULE_GNRC_NETTYPE_UDP)
         case GNRC_NETTYPE_UDP:
             printf("NETTYPE_UDP (%i)\n", pkt->type);
-            udp_hdr_print(pkt->data);
+            if (IS_USED(MODULE_UDP)) {
+                udp_hdr_print(pkt->data);
+                hdr_len = sizeof(udp_hdr_t);
+            }
             break;
-#endif
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_UDP) */
+#if IS_USED(MODULE_GNRC_NETTYPE_CCN)
+        case GNRC_NETTYPE_CCN_CHUNK:
+            printf("GNRC_NETTYPE_CCN_CHUNK (%i)\n", pkt->type);
+            printf("Content is: %.*s\n", (int)pkt->size, (char*)pkt->data);
+            hdr_len = pkt->size;
+            break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_CCN) */
+#if IS_USED(MODULE_GNRC_NETTYPE_NDN)
+    case GNRC_NETTYPE_NDN:
+            printf("NETTYPE_NDN (%i)\n", pkt->type);
+        break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_NDN) */
+#if IS_USED(MODULE_GNRC_NETTYPE_LORAWAN)
+    case GNRC_NETTYPE_LORAWAN:
+            printf("NETTYPE_LORAWAN (%i)\n", pkt->type);
+        break;
+#endif  /* IS_USED(MODULE_GNRC_NETTYPE_LORAWAN) */
 #ifdef TEST_SUITES
         case GNRC_NETTYPE_TEST:
             printf("NETTYPE_TEST (%i)\n", pkt->type);
-            od_hex_dump(pkt->data, pkt->size, OD_WIDTH_DEFAULT);
             break;
 #endif
         default:
             printf("NETTYPE_UNKNOWN (%i)\n", pkt->type);
-            od_hex_dump(pkt->data, pkt->size, OD_WIDTH_DEFAULT);
             break;
+    }
+    if (hdr_len < pkt->size) {
+        size_t size = pkt->size - hdr_len;
+
+        od_hex_dump(((uint8_t *)pkt->data) + hdr_len, size, OD_WIDTH_DEFAULT);
     }
 }
 
@@ -135,11 +180,11 @@ static void *_eventloop(void *arg)
         switch (msg.type) {
             case GNRC_NETAPI_MSG_TYPE_RCV:
                 puts("PKTDUMP: data received:");
-                _dump((gnrc_pktsnip_t *)msg.content.ptr);
+                _dump(msg.content.ptr);
                 break;
             case GNRC_NETAPI_MSG_TYPE_SND:
                 puts("PKTDUMP: data to send:");
-                _dump((gnrc_pktsnip_t *)msg.content.ptr);
+                _dump(msg.content.ptr);
                 break;
             case GNRC_NETAPI_MSG_TYPE_GET:
             case GNRC_NETAPI_MSG_TYPE_SET:
@@ -155,17 +200,12 @@ static void *_eventloop(void *arg)
     return NULL;
 }
 
-kernel_pid_t gnrc_pktdump_getpid(void)
-{
-    return _pid;
-}
-
 kernel_pid_t gnrc_pktdump_init(void)
 {
-    if (_pid == KERNEL_PID_UNDEF) {
-        _pid = thread_create(_stack, sizeof(_stack), GNRC_PKTDUMP_PRIO,
+    if (gnrc_pktdump_pid == KERNEL_PID_UNDEF) {
+        gnrc_pktdump_pid = thread_create(_stack, sizeof(_stack), GNRC_PKTDUMP_PRIO,
                              THREAD_CREATE_STACKTEST,
                              _eventloop, NULL, "pktdump");
     }
-    return _pid;
+    return gnrc_pktdump_pid;
 }

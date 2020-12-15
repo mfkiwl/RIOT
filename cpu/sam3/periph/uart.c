@@ -8,6 +8,7 @@
 
 /**
  * @ingroup     cpu_sam3
+ * @ingroup     drivers_periph_uart
  * @{
  *
  * @file
@@ -20,11 +21,10 @@
 
 #include "cpu.h"
 #include "board.h"
-#include "sched.h"
-#include "thread.h"
 #include "periph/uart.h"
+#include "periph/gpio.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 /**
@@ -38,7 +38,7 @@ int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
 
     /* make sure given device is valid */
     if (uart >= UART_NUMOF) {
-        return -1;
+        return UART_NODEV;
     }
 
     /* get base register */
@@ -51,27 +51,30 @@ int uart_init(uart_t uart, uint32_t baudrate, uart_rx_cb_t rx_cb, void *arg)
     /* enable clock */
     uart_poweron(uart);
 
-    /* configure pins
-       TODO: optimize once GPIO refactoring is merged */
-    uart_config[uart].rx_port->PIO_PDR = (1 << uart_config[uart].rx_pin);
-    uart_config[uart].rx_port->PIO_ABSR &= ~(1 << uart_config[uart].rx_pin);
-    uart_config[uart].tx_port->PIO_ABSR |=  (uart_config[uart].mux <<
-                                             uart_config[uart].rx_pin);
-    uart_config[uart].tx_port->PIO_PDR = (1 << uart_config[uart].tx_pin);
-    uart_config[uart].tx_port->PIO_ABSR &= ~(1 << uart_config[uart].tx_pin);
-    uart_config[uart].tx_port->PIO_ABSR |=  (uart_config[uart].mux <<
-                                             uart_config[uart].tx_pin);
+    /* reset configuration */
+    dev->UART_CR = 0;
+    dev->UART_IDR = 0x0000ffff;
+
+    /* configure pins */
+    gpio_init_mux(uart_config[uart].tx_pin, uart_config[uart].mux);
+    if (rx_cb) {
+        gpio_init_mux(uart_config[uart].rx_pin, uart_config[uart].mux);
+    }
 
     /* configure baud rate and set mode to 8N1 */
-    dev->UART_BRGR = (F_CPU / (16 * baudrate));
+    dev->UART_BRGR = (CLOCK_CORECLOCK / (16 * baudrate));
     dev->UART_MR = UART_MR_PAR_NO | US_MR_CHRL_8_BIT;
-    dev->UART_CR = UART_CR_RXEN | UART_CR_TXEN | UART_CR_RSTSTA;
 
-    /* enable RX interrupt */
-    NVIC_EnableIRQ(uart_config[uart].irqn);
-    dev->UART_IER = UART_IER_RXRDY;
+    if (rx_cb) {
+        dev->UART_CR = UART_CR_RXEN | UART_CR_TXEN | UART_CR_RSTSTA;
+        NVIC_EnableIRQ(uart_config[uart].irqn);
+        dev->UART_IER = UART_IER_RXRDY;
+    }
+    else {
+        dev->UART_CR = UART_CR_TXEN | UART_CR_RSTSTA;
+    }
 
-    return 0;
+    return UART_OK;
 }
 
 void uart_write(uart_t uart, const uint8_t *data, size_t len)
@@ -79,7 +82,7 @@ void uart_write(uart_t uart, const uint8_t *data, size_t len)
     Uart *dev = uart_config[uart].dev;
 
     for (size_t i = 0; i < len; i++) {
-        while (!(dev->UART_SR & UART_SR_TXRDY));
+        while (!(dev->UART_SR & UART_SR_TXRDY)) {}
         dev->UART_THR = data[i];
     }
 }
@@ -99,11 +102,9 @@ static inline void isr_handler(int num)
     Uart *dev = uart_config[num].dev;
 
     if (dev->UART_SR & UART_SR_RXRDY) {
-        ctx[num].rx_cb(ctx[num].arg, (char)dev->UART_RHR);
+        ctx[num].rx_cb(ctx[num].arg, (uint8_t)dev->UART_RHR);
     }
-    if (sched_context_switch_request) {
-        thread_yield();
-    }
+    cortexm_isr_end();
 }
 
 #ifdef UART_0_ISR

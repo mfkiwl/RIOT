@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Freie Universität Berlin
+ * Copyright (C) 2019 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -11,7 +11,7 @@
  * @{
  *
  * @file
- * @brief       Test application for the NRF51822 minimal radio driver (nrfmin)
+ * @brief       Test for the Nordic specific nrfmin radio driver
  *
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  *
@@ -21,33 +21,23 @@
 #include <stdio.h>
 
 #include "shell.h"
-#include "nrfmin.h"
-#include "net/gnrc.h"
-#include "net/gnrc/nomac.h"
-#include "net/gnrc/pktdump.h"
+#include "msg.h"
 
-static char nomac_stack[THREAD_STACKSIZE_DEFAULT];
+#define MAIN_QUEUE_SIZE     (8)
+static msg_t _main_msg_queue[MAIN_QUEUE_SIZE];
 
 int main(void)
 {
-    gnrc_netdev_t dev;
-    gnrc_netreg_entry_t netobj;
+    /* we need a message queue for the thread running the shell in order to
+     * receive potentially fast incoming networking packets */
+    msg_init_queue(_main_msg_queue, MAIN_QUEUE_SIZE);
+    puts("Test for the RIOT integration of the nrfmin radio driver");
 
-    puts("\nManual test for the minimal NRF51822 radio driver\n");
-    puts("Use the 'ifconfig' and 'txtsnd' shell commands to verify the driver");
-
-    /* initialize network device */
-    nrfmin_init(&dev);
-    gnrc_nomac_init(nomac_stack, sizeof(nomac_stack), 5, "nomac", &dev);
-
-    /* initialize packet dumper */
-    netobj.pid = gnrc_pktdump_getpid();
-    netobj.demux_ctx = GNRC_NETREG_DEMUX_CTX_ALL;
-    gnrc_netreg_register(GNRC_NETTYPE_UNDEF, &netobj);
-
-    /* initialize and run the shell */
+    /* start shell */
+    puts("All up, running the shell now");
     char line_buf[SHELL_DEFAULT_BUFSIZE];
     shell_run(NULL, line_buf, SHELL_DEFAULT_BUFSIZE);
 
+    /* should be never reached */
     return 0;
 }

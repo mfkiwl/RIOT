@@ -1,19 +1,16 @@
-# name of your application
-APPLICATION = minimal
+DEVELHELP ?= 0
+include ../Makefile.tests_common
 
-# If no BOARD is found in the environment, use this default:
-BOARD ?= native
-
-# This has to be the absolute path to the RIOT base directory:
-RIOTBASE ?= $(CURDIR)/../..
-
-#
 CFLAGS += -DNDEBUG -DLOG_LEVEL=LOG_NONE
 
-#
-DISABLE_MODULE += auto_init
+DISABLE_MODULE += auto_init auto_init_%
+DISABLE_MODULE += test_utils_interactive_sync
 
-# Change this to 0 show compiler invocation lines by default:
-QUIET ?= 1
+USEMODULE += stdio_null
+
+# adjust stack sizes to very small values
+ifneq (native,$(BOARD))
+  CFLAGS += -DTHREAD_STACKSIZE_MAIN=256 -DTHREAD_STACKSIZE_IDLE=128
+endif
 
 include $(RIOTBASE)/Makefile.include

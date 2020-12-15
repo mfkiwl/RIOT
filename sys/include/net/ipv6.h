@@ -11,9 +11,7 @@
  * @ingroup     net
  * @brief       Provides types and helper functions related to Internet Protocol
  *              version 6 (IPv6)
- * @see <a href="http://tools.ietf.org/html/rfc2460">
- *          RFC 2460
- *      </a> et al.
+ * @see [RFC 8200](http://tools.ietf.org/html/rfc8200) et al.
  * @{
  *
  * @file
@@ -21,12 +19,12 @@
  *
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
-#ifndef IPV6_H_
-#define IPV6_H_
+#ifndef NET_IPV6_H
+#define NET_IPV6_H
 
-#include "ipv6/addr.h"
-#include "ipv6/ext.h"
-#include "ipv6/hdr.h"
+#include "net/ipv6/addr.h"
+#include "net/ipv6/ext.h"
+#include "net/ipv6/hdr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,9 +33,7 @@ extern "C" {
 /**
  * @brief   minimum **M**aximum **T**ransition **U**nit
  *
- * @see <a href="https://tools.ietf.org/html/rfc4944#section-5.3">
- *          RFC 2460, section 5.3
- *      </a>
+ * @see [RFC 8200, section 5](https://tools.ietf.org/html/rfc8200#section-5)
  */
 #define IPV6_MIN_MTU    (1280)
 
@@ -46,5 +42,5 @@ extern "C" {
 #endif
 
 
-#endif /* IPV6_H_ */
+#endif /* NET_IPV6_H */
 /** @} */

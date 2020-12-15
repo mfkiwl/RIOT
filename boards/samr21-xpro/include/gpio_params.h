@@ -16,6 +16,7 @@
  *
  * @author    Hauke Petersen <hauke.petersen@fu-berlin.de>
  * @author    Kaspar Schleiser <kaspar@schleiser.de>
+ * @author    Sebastian Meiling <s@mlng.net>
  */
 
 #ifndef GPIO_PARAMS_H
@@ -35,8 +36,15 @@ static const  saul_gpio_params_t saul_gpio_params[] =
 {
     {
         .name = "LED(orange)",
-        .pin = LED_GPIO,
-        .dir = GPIO_DIR_OUT,
+        .pin = LED0_PIN,
+        .mode = GPIO_OUT,
+        .flags = SAUL_GPIO_INVERTED,
+    },
+    {
+        .name = "Button(SW0)",
+        .pin  = BTN0_PIN,
+        .mode = BTN0_MODE,
+        .flags = SAUL_GPIO_INVERTED,
     },
 };
 

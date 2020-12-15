@@ -27,14 +27,14 @@
 #endif
 #include "mutex.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG 0
 #include "debug.h"
 #include "universal_address.h"
 
 /**
  * @brief Maximum number of entries handled
  */
-/* determine the maximum numer of entries */
+/* determine the maximum number of entries */
 #ifndef UNIVERSAL_ADDRESS_MAX_ENTRIES
 /* all potential users of universal addresses have to add their requirements here */
 #   if defined(MODULE_FIB) && defined(MODULE_GNRC_IPV6)
@@ -72,6 +72,9 @@ static mutex_t mtx_access = MUTEX_INIT;
  */
 static universal_address_container_t *universal_address_find_entry(uint8_t *addr, size_t addr_size)
 {
+    /* cppcheck-suppress unsignedLessThanZero
+     * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero in which case this
+     * code is optimized out) */
     for (size_t i = 0; i < UNIVERSAL_ADDRESS_MAX_ENTRIES; ++i) {
         if (universal_address_table[i].address_size == addr_size) {
             if (memcmp((universal_address_table[i].address), addr, addr_size) == 0) {
@@ -91,7 +94,12 @@ static universal_address_container_t *universal_address_find_entry(uint8_t *addr
  */
 static universal_address_container_t *universal_address_get_next_unused_entry(void)
 {
+    /* cppcheck-suppress unsignedLessThanZero
+     * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero in which case this
+     * code is optimized out) */
     if (universal_address_table_filled < UNIVERSAL_ADDRESS_MAX_ENTRIES) {
+        /* cppcheck-suppress unsignedLessThanZero
+         * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero, see above) */
         for (size_t i = 0; i < UNIVERSAL_ADDRESS_MAX_ENTRIES; ++i) {
             if (universal_address_table[i].use_count == 0) {
                 return &(universal_address_table[i]);
@@ -196,40 +204,46 @@ int universal_address_compare(universal_address_container_t *entry,
         return ret;
     }
 
-    /* Get the index of the first trailing `0` (indicates a prefix) */
-    int i = 0;
-    for( i = entry->address_size-1; i > 0; --i) {
-        if( entry->address[i] != 0 ) {
+    /* compare up to fist distinct byte, pretty clumsy method for now */
+    int idx = -1;
+    bool test_all_zeros = true;
+    for (size_t i = 0; i < entry->address_size; i++) {
+        if ((idx == -1) && (entry->address[i] != addr[i])) {
+            idx = i;
+        }
+        if (test_all_zeros) {
+            test_all_zeros = (entry->address[i] == 0);
+        }
+        if ((idx != -1) && !test_all_zeros) {
             break;
         }
     }
 
-    if( memcmp(entry->address, addr, i) == 0 ) {
-        /* if the bytes-1 equals we check the bits of the lowest byte */
-        uint8_t bitmask = 0x00;
-        uint8_t j = 0;
-        /* get a bitmask for the trailing 0b */
-        for( ; j < 8; ++j ) {
-            if ( (entry->address[i] >> j) & 0x01 ) {
-                bitmask = 0xff << j;
-                break;
-            }
-        }
-        if( (entry->address[i] & bitmask) == (addr[i] & bitmask) ) {
-            ret = entry->address[i] != addr[i];
-            *addr_size_in_bits = (i<<3) + (8-j);
-            if( ret == 0 ) {
-                /* check if the remaining bits from addr are significant */
-                i++;
-                for(; i < entry->address_size; ++i) {
-                    if( addr[i] != 0 ) {
-                        ret = 1;
-                        break;
-                    }
-                }
-            }
+    /* if the address is all 0 its a default route address */
+    if (test_all_zeros) {
+        *addr_size_in_bits = 0;
+        mutex_unlock(&mtx_access);
+        return UNIVERSAL_ADDRESS_IS_ALL_ZERO_ADDRESS;
+    }
+
+    /* if we have no distinct bytes the addresses are equal */
+    if (idx == -1) {
+        mutex_unlock(&mtx_access);
+        return UNIVERSAL_ADDRESS_EQUAL;
+    }
+
+    /* count equal bits */
+    uint8_t xor = entry->address[idx]^addr[idx];
+    int8_t j = 7;
+    for ( ; j > 0; --j) {
+        if ((xor >> j) & 0x01) {
+            break;
         }
     }
+
+    /* get the total number of matching bits */
+    *addr_size_in_bits = (idx << 3) + j;
+    ret = UNIVERSAL_ADDRESS_MATCHING_PREFIX;
 
     mutex_unlock(&mtx_access);
     return ret;
@@ -248,31 +262,31 @@ int universal_address_compare_prefix(universal_address_container_t *entry,
 
     /* Get the index of the first trailing `0` */
     int i = 0;
-    for( i = entry->address_size-1; i >= 0; --i) {
-        if( prefix[i] != 0 ) {
+    for (i = entry->address_size-1; i >= 0; --i) {
+        if (prefix[i] != 0) {
             break;
         }
     }
 
-    if( memcmp(entry->address, prefix, i) == 0 ) {
+    if (memcmp(entry->address, prefix, i) == 0) {
         /* if the bytes-1 equals we check the bits of the lowest byte */
         uint8_t bitmask = 0x00;
         /* get a bitmask for the trailing 0b */
-        for( uint8_t j = 0; j < 8; ++j ) {
-            if ( (prefix[i] >> j) & 0x01 ) {
+        for (uint8_t j = 0; j < 8; ++j) {
+            if ((prefix[i] >> j) & 0x01) {
                 bitmask = 0xff << j;
                 break;
             }
         }
 
-        if( (entry->address[i] & bitmask) == (prefix[i] & bitmask) ) {
+        if ((entry->address[i] & bitmask) == (prefix[i] & bitmask)) {
             ret = entry->address[i] != prefix[i];
-            if( ret == 0 ) {
+            if (ret == UNIVERSAL_ADDRESS_EQUAL) {
                 /* check if the remaining bits from entry are significant */
                 i++;
-                for(; i < entry->address_size; ++i) {
-                    if( entry->address[i] != 0 ) {
-                        ret = 1;
+                for ( ; i < entry->address_size; ++i) {
+                    if (entry->address[i] != 0) {
+                        ret = UNIVERSAL_ADDRESS_MATCHING_PREFIX;
                         break;
                     }
                 }
@@ -288,6 +302,9 @@ void universal_address_init(void)
 {
     mutex_lock(&mtx_access);
 
+    /* cppcheck-suppress unsignedLessThanZero
+     * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero in which case this
+     * code is optimized out) */
     for (size_t i = 0; i < UNIVERSAL_ADDRESS_MAX_ENTRIES; ++i) {
         universal_address_table[i].use_count = 0;
         universal_address_table[i].address_size = 0;
@@ -301,6 +318,9 @@ void universal_address_reset(void)
 {
     mutex_lock(&mtx_access);
 
+    /* cppcheck-suppress unsignedLessThanZero
+     * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero in which case this
+     * code is optimized out) */
     for (size_t i = 0; i < UNIVERSAL_ADDRESS_MAX_ENTRIES; ++i) {
         universal_address_table[i].use_count = 0;
     }
@@ -342,6 +362,9 @@ void universal_address_print_table(void)
     printf("[universal_address_print_table] universal_address_table_filled: %d\n", \
            (int)universal_address_table_filled);
 
+    /* cppcheck-suppress unsignedLessThanZero
+     * (reason: UNIVERSAL_ADDRESS_MAX_ENTRIES may be zero in which case this
+     * code is optimized out) */
     for (size_t i = 0; i < UNIVERSAL_ADDRESS_MAX_ENTRIES; ++i) {
         universal_address_print_entry(&universal_address_table[i]);
     }

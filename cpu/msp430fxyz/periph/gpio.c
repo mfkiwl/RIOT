@@ -8,6 +8,7 @@
 
 /**
  * @ingroup     cpu_msp430fxyz
+ * @ingroup     drivers_periph_gpio
  * @{
  *
  * @file
@@ -32,20 +33,6 @@
  */
 #define PINS_PER_PORT       (8U)
 
-/**
- * @brief   Datatype to use for saving the interrupt contexts
- */
-typedef struct {
-    gpio_cb_t cb;       /**< callback to call on GPIO interrupt */
-    void *arg;          /**< argument passed to the callback */
-} isr_ctx_t;
-
-/**
- * @brief   Interrupt context for each interrupt line
- */
-static isr_ctx_t isr_ctx[ISR_NUMOF];
-
-
 static msp_port_t *_port(gpio_t pin)
 {
     switch (pin >> 8) {
@@ -66,6 +53,11 @@ static msp_port_t *_port(gpio_t pin)
     }
 }
 
+static inline uint8_t _pin(gpio_t pin)
+{
+    return (uint8_t)(pin & 0xff);
+}
+
 static inline msp_port_isr_t *_isr_port(gpio_t pin)
 {
     msp_port_t *p = _port(pin);
@@ -75,55 +67,23 @@ static inline msp_port_isr_t *_isr_port(gpio_t pin)
     return NULL;
 }
 
-static inline uint8_t _pin(gpio_t pin)
-{
-    return (uint8_t)(pin & 0xff);
-}
-
-static int _ctx(gpio_t pin)
-{
-    int i = bitarithm_lsb(_pin(pin));
-    return (_port(pin) == PORT_1) ? i : (i + 8);
-}
-
-int gpio_init(gpio_t pin, gpio_dir_t dir, gpio_pp_t pullup)
+int gpio_init(gpio_t pin, gpio_mode_t mode)
 {
     msp_port_t *port = _port(pin);
-    /* check if port is valid and pull resistor are valid */
-    if ((port == NULL) || (pullup != GPIO_NOPULL)) {
+
+    /* check if port is valid and mode applicable */
+    if ((port == NULL) || ((mode != GPIO_IN) && (mode != GPIO_OUT))) {
         return -1;
     }
+
     /* set pin direction */
-    port->DIR &= ~(_pin(pin));
-    port->DIR |= (dir & _pin(pin));
-    /* reset output value */
-    port->OD &= ~(_pin(pin));
-    return 0;
-}
-
-int gpio_init_int(gpio_t pin, gpio_pp_t pullup, gpio_flank_t flank,
-                    gpio_cb_t cb, void *arg)
-{
-    msp_port_isr_t *port = _isr_port(pin);
-
-    /* check if port, pull resistor and flank configuration are valid */
-    if ((port == NULL) || (pullup != GPIO_NOPULL) || (flank == GPIO_BOTH)) {
-        return -1;
+    if (mode == GPIO_OUT) {
+        port->DIR |= _pin(pin);
+    }
+    else {
+        port->DIR &= ~(_pin(pin));
     }
 
-    /* disable any activated interrupt */
-    port->IE &= ~(_pin(pin));
-    /* configure as input */
-    gpio_init(pin, GPIO_DIR_IN, GPIO_NOPULL);
-    /* save ISR context */
-    isr_ctx[_ctx(pin)].cb = cb;
-    isr_ctx[_ctx(pin)].arg = arg;
-    /* configure flank */
-    port->IES &= ~(_pin(pin));
-    port->IES |= (flank & _pin(pin));
-    /* clear pending interrupts and enable the IRQ */
-    port->IFG &= ~(_pin(pin));
-    gpio_irq_enable(pin);
     return 0;
 }
 
@@ -148,22 +108,6 @@ void gpio_periph_mode(gpio_t pin, bool enable)
     }
     else {
         *sel &= ~(_pin(pin));
-    }
-}
-
-void gpio_irq_enable(gpio_t pin)
-{
-    msp_port_isr_t *port = _isr_port(pin);
-    if (port) {
-        port->IE |= _pin(pin);
-    }
-}
-
-void gpio_irq_disable(gpio_t pin)
-{
-    msp_port_isr_t *port = _isr_port(pin);
-    if (port) {
-        port->IE &= ~(_pin(pin));
     }
 }
 
@@ -203,9 +147,65 @@ void gpio_write(gpio_t pin, int value)
     }
 }
 
+#ifdef MODULE_PERIPH_GPIO_IRQ
+/**
+ * @brief   Interrupt context for each interrupt line
+ */
+static gpio_isr_ctx_t isr_ctx[ISR_NUMOF];
+
+static int _ctx(gpio_t pin)
+{
+    int i = bitarithm_lsb(_pin(pin));
+    return (_port(pin) == PORT_1) ? i : (i + 8);
+}
+
+int gpio_init_int(gpio_t pin, gpio_mode_t mode, gpio_flank_t flank,
+                    gpio_cb_t cb, void *arg)
+{
+    msp_port_isr_t *port = _isr_port(pin);
+
+    /* check if port, pull resistor and flank configuration are valid */
+    if ((port == NULL) || (flank == GPIO_BOTH)) {
+        return -1;
+    }
+
+    /* disable any activated interrupt */
+    port->IE &= ~(_pin(pin));
+    /* configure as input */
+    if (gpio_init(pin, mode) < 0) {
+        return -1;
+    }
+    /* save ISR context */
+    isr_ctx[_ctx(pin)].cb = cb;
+    isr_ctx[_ctx(pin)].arg = arg;
+    /* configure flank */
+    port->IES &= ~(_pin(pin));
+    port->IES |= (flank & _pin(pin));
+    /* clear pending interrupts and enable the IRQ */
+    port->IFG &= ~(_pin(pin));
+    gpio_irq_enable(pin);
+    return 0;
+}
+
+void gpio_irq_enable(gpio_t pin)
+{
+    msp_port_isr_t *port = _isr_port(pin);
+    if (port) {
+        port->IE |= _pin(pin);
+    }
+}
+
+void gpio_irq_disable(gpio_t pin)
+{
+    msp_port_isr_t *port = _isr_port(pin);
+    if (port) {
+        port->IE &= ~(_pin(pin));
+    }
+}
+
 static inline void isr_handler(msp_port_isr_t *port, int ctx)
 {
-    for (int i = 0; i < PINS_PER_PORT; i++) {
+    for (unsigned i = 0; i < PINS_PER_PORT; i++) {
         if ((port->IE & (1 << i)) && (port->IFG & (1 << i))) {
             port->IFG &= ~(1 << i);
             isr_ctx[i + ctx].cb(isr_ctx[i + ctx].arg);
@@ -226,3 +226,4 @@ ISR(PORT2_VECTOR, isr_port2)
     isr_handler((msp_port_isr_t *)PORT_2, 8);
     __exit_isr();
 }
+#endif /* MODULE_PERIPH_GPIO_IRQ */

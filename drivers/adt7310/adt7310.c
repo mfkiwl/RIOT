@@ -26,7 +26,7 @@
 #include "adt7310.h"
 #include "byteorder.h"
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG    0
 #include "debug.h"
 
 /* SPI command byte parameters */
@@ -66,7 +66,7 @@
 #define ADT7310_REG_ID_MASK_SILICON_VERSION  (0x07)
 
 /** @brief Expected manufacturer ID */
-#define ADT7310_EXPECTED_MANUF_ID (0b11000000)
+#define ADT7310_EXPECTED_MANUF_ID (0xC0)
 
 /** @brief 13 bit temperature mask */
 #define ADT7310_REG_VALUE_MASK_13BIT  (0xF8)
@@ -95,15 +95,9 @@ static int adt7310_read_reg(const adt7310_t *dev, const uint8_t addr, const uint
     int status = 0;
     uint8_t command = ADT7310_CMD_READ | (addr << ADT7310_CMD_ADDR_SHIFT);
     /* Acquire exclusive access to the bus. */
-    spi_acquire(dev->spi);
+    spi_acquire(dev->spi, dev->cs, SPI_MODE_0, dev->clk);
     /* Perform the transaction */
-    gpio_clear(dev->cs);
-
-    if (spi_transfer_regs(dev->spi, command, NULL, (char *)buf, len) < len) {
-        status = -1;
-    }
-
-    gpio_set(dev->cs);
+    spi_transfer_regs(dev->spi, dev->cs, command, NULL, buf, (size_t)len);
     /* Release the bus for other threads. */
     spi_release(dev->spi);
 
@@ -127,46 +121,40 @@ static int adt7310_write_reg(const adt7310_t *dev, const uint8_t addr,
     int status = 0;
     uint8_t command = ADT7310_CMD_WRITE | (addr << ADT7310_CMD_ADDR_SHIFT);
     /* Acquire exclusive access to the bus. */
-    spi_acquire(dev->spi);
+    spi_acquire(dev->spi, dev->cs, SPI_MODE_0, dev->clk);
     /* Perform the transaction */
-    gpio_clear(dev->cs);
-
-    if (spi_transfer_regs(dev->spi, command, (char *)buf, NULL, len) < len) {
-        status = -1;
-    }
-
-    gpio_set(dev->cs);
+    spi_transfer_regs(dev->spi, dev->cs, command, buf, NULL, (size_t)len);
     /* Release the bus for other threads. */
     spi_release(dev->spi);
 
     return status;
 }
 
-int adt7310_init(adt7310_t *dev, spi_t spi, gpio_t cs)
+int adt7310_init(adt7310_t *dev, spi_t spi, spi_clk_t clk, gpio_t cs)
 {
     int status;
     uint8_t reg = 0;
     /* write device descriptor */
     dev->spi = spi;
+    dev->clk = clk;
     dev->cs = cs;
     dev->initialized = false;
     dev->high_res = false;
 
     /* CS */
-    gpio_init(dev->cs, GPIO_DIR_OUT, GPIO_NOPULL);
-    gpio_set(dev->cs);
+    spi_init_cs(dev->spi, dev->cs);
 
-#if ENABLE_DEBUG
-    for (int i = 0; i < 8; ++i) {
-        uint16_t dbg_reg = 0;
-        status = adt7310_read_reg(dev, i, sizeof(dbg_reg), (uint8_t *)&dbg_reg);
-        if (status != 0) {
-            printf("Error reading address 0x%02x", i);
+    if (IS_ACTIVE(ENABLE_DEBUG)) {
+        for (int i = 0; i < 8; ++i) {
+            uint16_t dbg_reg = 0;
+            status = adt7310_read_reg(dev, i, sizeof(dbg_reg), (uint8_t *)&dbg_reg);
+            if (status != 0) {
+                printf("Error reading address 0x%02x", i);
+            }
+            dbg_reg = htons(dbg_reg);
+            printf("%02x: %04" PRIx16 "\n", i, dbg_reg);
         }
-        dbg_reg = HTONS(dbg_reg);
-        printf("%02x: %04" PRIx16 "\n", i, dbg_reg);
     }
-#endif
 
     /* Read ID register from device */
     status = adt7310_read_reg(dev, ADT7310_REG_ID, ADT7310_REG_SIZE_ID, &reg);
@@ -197,7 +185,7 @@ int adt7310_set_config(adt7310_t *dev, uint8_t config)
     return adt7310_write_reg(dev, ADT7310_REG_CONFIG, ADT7310_REG_SIZE_CONFIG, &config);
 }
 
-int16_t adt7310_read_raw(adt7310_t *dev)
+int16_t adt7310_read_raw(const adt7310_t *dev)
 {
     int status;
     int16_t raw;
@@ -209,11 +197,11 @@ int16_t adt7310_read_raw(adt7310_t *dev)
         return INT16_MIN;
     }
     /* The temperature value is sent big endian (network byte order) */
-    raw = (int16_t)NTOHS((uint16_t)raw);
+    raw = (int16_t)ntohs((uint16_t)raw);
     return raw;
 }
 
-int32_t adt7310_read(adt7310_t *dev)
+int32_t adt7310_read(const adt7310_t *dev)
 {
     int16_t raw = adt7310_read_raw(dev);
     if (raw == INT16_MIN) {
@@ -226,10 +214,12 @@ int32_t adt7310_read(adt7310_t *dev)
     return ((((int32_t)raw) * 1000) >> ADT7310_VALUE_FRAC_BITS);
 }
 
-float adt7310_read_float(adt7310_t *dev)
+float adt7310_read_float(const adt7310_t *dev)
 {
     int16_t raw = adt7310_read_raw(dev);
     if (raw == INT16_MIN) {
+        /* cppcheck-suppress duplicateExpression
+         * (reason: we want to create a NaN here) */
         return (0.0f / 0.0f); /* return NaN */
     }
     if (!dev->high_res) {

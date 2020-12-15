@@ -6,8 +6,8 @@
  * more details.
  */
 
-#ifndef ARM7_COMMON_H_
-#define ARM7_COMMON_H_
+#ifndef ARM7_COMMON_H
+#define ARM7_COMMON_H
 
 /**
  * @defgroup    cpu_arm7_common ARM7 CPU common
@@ -72,9 +72,10 @@ extern "C" {
 #define BORD        (BIT4)
 #define PM2         (BIT7)
 
-#define PM_IDLE         (PM0)
-#define PM_SLEEP        (PM2|PM0)
-#define PM_POWERDOWN    (PM1)
+#define PM_IDLE             (PM0)
+#define PM_SLEEP            (PM2|PM0)
+#define PM_POWERDOWN        (PM1)
+#define PM_DEEP_POWERDOWN   (PM2|PM1)
 /** @} */
 
 /**
@@ -100,4 +101,4 @@ extern "C" {
 #endif
 
 /** @} */
-#endif /* ARM7_COMMON_H_ */
+#endif /* ARM7_COMMON_H */

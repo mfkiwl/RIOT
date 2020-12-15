@@ -7,9 +7,7 @@
  */
 
 /**
- * @defgroup    boards_msbiot MSB-IoT
- * @ingroup     boards
- * @brief       Board specific files for the MSB-IoT board
+ * @ingroup     boards_msbiot
  * @{
  *
  * @file
@@ -18,8 +16,8 @@
  * @author      Fabian Nack <nack@inf.fu-berlin.de>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
 #include "cpu.h"
 #include "periph_conf.h"
@@ -29,66 +27,59 @@ extern "C" {
 #endif
 
 /**
- * Define the nominal CPU core clock in this board
- */
-#define F_CPU               CLOCK_CORECLOCK
-
-/**
- * @name Configure connected CC1101 (radio) device
+ * @name    Configure connected CC1101 (radio) device
  * @{
  */
-#define CC110X_SPI          SPI_0
-#define CC110X_CS           GPIO_PIN(PORT_B, 12)
-#define CC110X_GDO0         GPIO_PIN(PORT_C, 4)
-#define CC110X_GDO1         GPIO_PIN(PORT_A, 6)
-#define CC110X_GDO2         GPIO_PIN(PORT_C, 5)
+#define CC110X_PARAM_SPI        SPI_DEV(0)              /**< SPI interface CC1101 is connected to */
+#define CC110X_PARAM_CS         GPIO_PIN(PORT_B, 12)    /**< CS pin of CC1101 */
+#define CC110X_PARAM_GDO0       GPIO_PIN(PORT_C, 4)     /**< GDO0 pin of CC1101 */
+#define CC110X_PARAM_GDO2       GPIO_PIN(PORT_C, 5)     /**< GDO2 pin of CC1101 */
+#define CC110X_PARAM_SPI_CLOCK  SPI_CLK_1MHZ            /**< SPI clock (reduced to work around hw bug) */
 /** @} */
 
 /**
- * @name Configure connected MPU-9150 device
+ * @name    Configure connected MPU-9150 device
  * @{
  */
-#define MPU9150_I2C         I2C_0
-#define MPU9150_HW_ADDR     (0x68)
-#define MPU9150_COMP_ADDR   (0x0E)
+#define MPU9150_PARAM_COMP_ADDR   (0x0E)            /**< I2C address of the MPU9150 */
 /** @} */
 
 /**
- * @name Define UART device and baudrate for stdio
+ * @name    LED pin definitions and handlers
  * @{
  */
-#define STDIO               UART_DEV(0)
-#define STDIO_BAUDRATE      (115200U)
-#define STDIO_RX_BUFSIZE    (64U)
+#define LED0_PIN            GPIO_PIN(PORT_B, 8)     /**< Pin of red LED */
+#define LED1_PIN            GPIO_PIN(PORT_B, 14)    /**< Pin of yellow LED */
+#define LED2_PIN            GPIO_PIN(PORT_B, 15)    /**< Pin of green LED */
+
+#define LED_PORT            GPIOB       /**< GPIO port LEDs are connected to */
+#define LED0_MASK           (1 << 8)    /**< Bitmask to address red LED in @ref LED_PORT */
+#define LED1_MASK           (1 << 14)   /**< Bitmask to address yellow LED in @ref LED_PORT */
+#define LED2_MASK           (1 << 15)   /**< Bitmask to address green LED in @ref LED_PORT */
+
+#define LED0_ON             (LED_PORT->BSRR = LED0_MASK)            /**< Turn red LED on */
+#define LED0_OFF            (LED_PORT->BSRR = (LED0_MASK << 16))    /**< Turn red LED off */
+#define LED0_TOGGLE         (LED_PORT->ODR  ^= LED0_MASK)           /**< Toggle red LED */
+
+#define LED1_ON             (LED_PORT->BSRR = LED1_MASK)            /**< Turn yellow LED on */
+#define LED1_OFF            (LED_PORT->BSRR = (LED1_MASK << 16))    /**< Turn yellow LED off */
+#define LED1_TOGGLE         (LED_PORT->ODR  ^= LED1_MASK)           /**< Toggle yellow LED */
+
+#define LED2_ON             (LED_PORT->BSRR = LED2_MASK)            /**< Turn green LED on */
+#define LED2_OFF            (LED_PORT->BSRR = (LED2_MASK << 16))    /**< Turn green LED off */
+#define LED2_TOGGLE         (LED_PORT->ODR  ^= LED2_MASK)           /**< Toggle green LED */
 /** @} */
 
 /**
- * @name LED pin definitions
+ * @name    Button pin definitions
  * @{
  */
-#define LED_PORT            GPIOB
-#define LED_RED_PIN         (1 << 8)
-#define LED_YELLOW_PIN      (1 << 14)
-#define LED_GREEN_PIN       (1 << 15)
+#define BUTTON0_PIN         GPIO_PIN(PORT_B, 13)    /**< Pin of left button */
+#define BUTTON1_PIN         GPIO_PIN(PORT_A, 0)     /**< Pin of right button */
 /** @} */
 
 /**
- * @name Macros for controlling the on-board LEDs.
- * @{
- */
-#define LED_RED_ON          (LED_PORT->BSRRH = LED_RED_PIN)
-#define LED_RED_OFF         (LED_PORT->BSRRL = LED_RED_PIN)
-#define LED_RED_TOGGLE      (LED_PORT->ODR ^= LED_RED_PIN)
-#define LED_YELLOW_ON       (LED_PORT->BSRRH = LED_YELLOW_PIN)
-#define LED_YELLOW_OFF      (LED_PORT->BSRRL = LED_YELLOW_PIN)
-#define LED_YELLOW_TOGGLE   (LED_PORT->ODR ^= LED_YELLOW_PIN)
-#define LED_GREEN_ON        (LED_PORT->BSRRH = LED_GREEN_PIN)
-#define LED_GREEN_OFF       (LED_PORT->BSRRL = LED_GREEN_PIN)
-#define LED_GREEN_TOGGLE    (LED_PORT->ODR ^= LED_GREEN_PIN)
-/** @} */
-
-/**
- * @brief Initialize board specific hardware, including clock, LEDs and std-IO
+ * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
  */
 void board_init(void);
 
@@ -96,5 +87,5 @@ void board_init(void);
 }
 #endif
 
-#endif /* BOARD_H_ */
+#endif /* BOARD_H */
 /** @} */

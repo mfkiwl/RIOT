@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2013 - 2014  INRIA.
  * Copyright (C) 2015 Martine Lenders <mlenders@inf.fu-berlin.de>
- * Copyright (C) 2015 Cenk Gündoğan <cnkgndgn@gmail.com>
+ * Copyright (C) 2015 - 2018 Cenk Gündoğan <cenk.guendogan@haw-hamburg.de>
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -12,6 +12,118 @@
  * @defgroup    net_gnrc_rpl  RPL
  * @ingroup     net_gnrc
  * @brief       RPL implementation for GNRC
+ *
+ * Configuration
+ * =============
+ *
+ * USEMODULE
+ * ---------
+ *
+ * - RPL (Storing Mode)
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   USEMODULE += gnrc_rpl
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - RPL auto-initialization on interface
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   USEMODULE += auto_init_gnrc_rpl
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * Auto-Initialization
+ * -------------------
+ *
+ * If the application defines only one interface (@ref gnrc_netif_highlander()
+ * returns true), then RPL will be initialized on this interface.
+ *
+ * If the application defines several interfaces (@ref gnrc_netif_highlander()
+ * returns false), then RPL will be initialized on the interface
+ * `CONFIG_GNRC_RPL_DEFAULT_NETIF`.
+ * Your application is responsible for setting `CONFIG_GNRC_RPL_DEFAULT_NETIF`
+ * to a valid interface PID, e.g. via `CFLAGS` or menuconfig.
+ *
+ * Initializing RPL on multiple interfaces automatically is currently not supported.
+ * Call `gnrc_rpl_init()` manually from your application for the desired interfaces in this case.
+ *
+ * CFLAGS
+ * ------
+ *
+ * - Exclude Prefix Information Options from DIOs
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_RPL_WITHOUT_PIO
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - Modify trickle parameters
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_DOUBLINGS=20
+ *   CFLAGS += -DCONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_MIN=3
+ *   CFLAGS += -DCONFIG_GNRC_RPL_DEFAULT_DIO_REDUNDANCY_CONSTANT=10
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - Make reception of DODAG_CONF optional when joining a DODAG.
+ *   This will use the default trickle parameters until a
+ *   DODAG_CONF is received from the parent. The DODAG_CONF is
+ *   requested once from the parent while joining the DODAG.
+ *   The standard behaviour is to request a DODAG_CONF and join
+ *   only a DODAG once a DODAG_CONF is received.
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_RPL_DODAG_CONF_OPTIONAL_ON_JOIN
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - Set interface for auto-initialization if more than one
+ *   interface exists (@ref gnrc_netif_highlander() returns false)
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_RPL_DEFAULT_NETIF=6
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - By default, all incoming control messages get checked for validation.
+ *   This validation can be disabled in case the involved RPL implementations
+ *   are known to produce valid messages.
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_RPL_WITHOUT_VALIDATION
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - This RPL implementation currently only supports storing mode.
+ *   That means, in order to have downwards routes to all nodes the
+ *   storage space within [@c gnrc_ipv6's Neighbor Information Base](@ref net_gnrc_ipv6_nib)
+ *   must be big enough to store information for each node.
+ *
+ *   For a random topology of n nodes, to ensure you can reach every node from the root,
+ *   set `CONFIG_GNRC_IPV6_NIB_NUMOF` == `CONFIG_GNRC_IPV6_NIB_OFFL_NUMOF` == n.
+ *
+ *   e.g. for n = 50 set
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_IPV6_NIB_NUMOF=50
+ *   CFLAGS += -DCONFIG_GNRC_IPV6_NIB_OFFL_NUMOF=50
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * - If you want to allow for alternative parents, increase the number of
+ *   default routers in the NIB.
+ *
+ *   e.g. for one alternative parent, set
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {.mk}
+ *   CFLAGS += -DCONFIG_GNRC_IPV6_NIB_DEFAULT_ROUTER_NUMOF=2
+ *   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * TODO
+ * ------
+ *
+ * The GNRC RPL implementation only implements storing mode
+ * with OF0 ([RFC6552](https://tools.ietf.org/html/rfc6552)).
+ * The RPL routing header is parsed by the nodes when the [@c gnrc_rpl_srh](@ref net_gnrc_rpl_srh)
+ * module is used, but anything else
+ * for non-storing mode is missing.
+ * For interoperability with other RPL implementations, open task include:
+ *
+ * - IPv6 Hop-by-hop RPL option
+ *   (see [#7231](https://github.com/RIOT-OS/RIOT/pull/7231#issuecomment-651237343))
+ * - Metric based routing ([RFC6551](https://tools.ietf.org/html/rfc6551)
+ *   and [RFC6719](https://tools.ietf.org/html/rfc6719))
+ *   (see [14448](https://github.com/RIOT-OS/RIOT/pull/14448) and
+ *   [#14623](https://github.com/RIOT-OS/RIOT/pull/14623))
+ * - Non-Storing mode
+ * - DAG-Metric Container ([RFC6550#6.7.4](https://tools.ietf.org/html/rfc6550#section-6.7.4)
+ *   and [RFC6551](https://tools.ietf.org/html/rfc6551))
+ *
  * @{
  *
  * @file
@@ -23,23 +135,29 @@
  * @author      Eric Engel <eric.engel@fu-berlin.de>
  * @author      Fabian Brandt <fabianbr@zedat.fu-berlin.de>
  * @author      Martine Lenders <mlenders@inf.fu-berlin.de>
- * @author      Cenk Gündoğan <cnkgndgn@gmail.com>
+ * @author      Cenk Gündoğan <cenk.guendogan@haw-hamburg.de>
  */
 
-#ifndef GNRC_RPL_H_
-#define GNRC_RPL_H_
+#ifndef NET_GNRC_RPL_H
+#define NET_GNRC_RPL_H
 
 #include <string.h>
 #include <stdint.h>
+#include "kernel_defines.h"
 #include "net/gnrc.h"
+#include "net/gnrc/ipv6.h"
 #include "net/ipv6/addr.h"
 #include "net/gnrc/nettype.h"
 #include "net/gnrc/rpl/structs.h"
 #include "net/gnrc/rpl/dodag.h"
 #include "net/gnrc/rpl/of_manager.h"
 #include "net/fib.h"
-#include "vtimer.h"
+#include "xtimer.h"
 #include "trickle.h"
+
+#ifdef MODULE_NETSTATS_RPL
+#include "net/rpl/rpl_netstats.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,14 +174,26 @@ extern "C" {
  * @brief   Default priority for the RPL thread
  */
 #ifndef GNRC_RPL_PRIO
-#define GNRC_RPL_PRIO           (THREAD_PRIORITY_MAIN - 4)
+#define GNRC_RPL_PRIO           (GNRC_IPV6_PRIO + 1)
 #endif
 
 /**
- * @brief   Default message queue size to use for the RPL thread.
+ * @brief   Default message queue size to use for the RPL thread (as exponent of
+ *          2^n).
+ *
+ *          As the queue size ALWAYS needs to be power of two, this option
+ *          represents the exponent of 2^n, which will be used as the size of
+ *          the queue.
+ */
+#ifndef CONFIG_GNRC_RPL_MSG_QUEUE_SIZE_EXP
+#define CONFIG_GNRC_RPL_MSG_QUEUE_SIZE_EXP   (3U)
+#endif
+
+/**
+ * @brief   Message queue size to use for the RPL thread.
  */
 #ifndef GNRC_RPL_MSG_QUEUE_SIZE
-#define GNRC_RPL_MSG_QUEUE_SIZE (8U)
+#define GNRC_RPL_MSG_QUEUE_SIZE     (1 << CONFIG_GNRC_RPL_MSG_QUEUE_SIZE_EXP)
 #endif
 
 /**
@@ -82,14 +212,9 @@ extern "C" {
 #define GNRC_RPL_MSG_TYPE_LIFETIME_UPDATE     (0x0900)
 
 /**
- * @brief   Message type for trickle intervals
+ * @brief   Message type for trickle
  */
-#define GNRC_RPL_MSG_TYPE_TRICKLE_INTERVAL    (0x0901)
-
-/**
- * @brief   Message type for trickle callbacks
- */
-#define GNRC_RPL_MSG_TYPE_TRICKLE_CALLBACK    (0x0902)
+#define GNRC_RPL_MSG_TYPE_TRICKLE_MSG         (0x0901)
 
 /**
  * @brief   Message type for handling DAO sending
@@ -110,12 +235,16 @@ extern "C" {
  *          RFC 6550, section 17
  *      </a>
  */
-#define GNRC_RPL_DEFAULT_MIN_HOP_RANK_INCREASE (256)
+#ifndef CONFIG_GNRC_RPL_DEFAULT_MIN_HOP_RANK_INCREASE
+#define CONFIG_GNRC_RPL_DEFAULT_MIN_HOP_RANK_INCREASE (256)
+#endif
 
 /**
  * @brief   Maximum rank increase
  */
-#define GNRC_RPL_DEFAULT_MAX_RANK_INCREASE (0)
+#ifndef CONFIG_GNRC_RPL_DEFAULT_MAX_RANK_INCREASE
+#define CONFIG_GNRC_RPL_DEFAULT_MAX_RANK_INCREASE (0)
+#endif
 
 /**
  * @brief   Number of implemented Objective Functions
@@ -130,7 +259,9 @@ extern "C" {
 /**
  * @brief   Default Instance ID
  */
-#define GNRC_RPL_DEFAULT_INSTANCE (0)
+#ifndef CONFIG_GNRC_RPL_DEFAULT_INSTANCE
+#define CONFIG_GNRC_RPL_DEFAULT_INSTANCE (0)
+#endif
 
 /**
  * @name RPL Mode of Operations
@@ -140,9 +271,21 @@ extern "C" {
 #define GNRC_RPL_MOP_NON_STORING_MODE    (0x01)
 #define GNRC_RPL_MOP_STORING_MODE_NO_MC  (0x02)
 #define GNRC_RPL_MOP_STORING_MODE_MC     (0x03)
+
+/* translate Kconfig options to final value */
+#if IS_ACTIVE(CONFIG_GNRC_RPL_MOP_NO_DOWNWARD_ROUTES)
+#define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_NO_DOWNWARD_ROUTES
+#elif IS_ACTIVE(CONFIG_GNRC_RPL_MOP_NON_STORING_MODE)
+#define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_NON_STORING_MODE
+#elif IS_ACTIVE(CONFIG_GNRC_RPL_MOP_STORING_MODE_NO_MC)
+#define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_STORING_MODE_NO_MC
+#elif IS_ACTIVE(CONFIG_GNRC_RPL_MOP_STORING_MODE_MC)
+#define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_STORING_MODE_MC
+#endif
+
 /** default MOP set on compile time */
 #ifndef GNRC_RPL_DEFAULT_MOP
-#   define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_STORING_MODE_NO_MC
+#define GNRC_RPL_DEFAULT_MOP GNRC_RPL_MOP_STORING_MODE_NO_MC
 #endif
 /** @} */
 
@@ -191,24 +334,34 @@ static inline bool GNRC_RPL_COUNTER_GREATER_THAN(uint8_t A, uint8_t B)
  *      </a>
  * @{
  */
-#define GNRC_RPL_DEFAULT_DIO_INTERVAL_DOUBLINGS (20)
-#define GNRC_RPL_DEFAULT_DIO_INTERVAL_MIN (3)
-#define GNRC_RPL_DEFAULT_DIO_REDUNDANCY_CONSTANT (10)
+#ifndef CONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_DOUBLINGS
+#define CONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_DOUBLINGS (20)
+#endif
+
+#ifndef CONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_MIN
+#define CONFIG_GNRC_RPL_DEFAULT_DIO_INTERVAL_MIN (3)
+#endif
+
+#ifndef CONFIG_GNRC_RPL_DEFAULT_DIO_REDUNDANCY_CONSTANT
+#define CONFIG_GNRC_RPL_DEFAULT_DIO_REDUNDANCY_CONSTANT (10)
+#endif
 /** @} */
 
 /**
  * @name Default parent and route entry lifetime
  * default lifetime will be multiplied by the lifetime unit to obtain the resulting lifetime
+ * @see <a href="https://tools.ietf.org/html/rfc6550#section-6.7.6">
+            DODAG Configuration
+        </a>
  * @{
  */
-#define GNRC_RPL_DEFAULT_LIFETIME (60)
-#define GNRC_RPL_LIFETIME_UNIT (2)
+#ifndef CONFIG_GNRC_RPL_DEFAULT_LIFETIME
+#define CONFIG_GNRC_RPL_DEFAULT_LIFETIME (5)
+#endif
+#ifndef CONFIG_GNRC_RPL_LIFETIME_UNIT
+#define CONFIG_GNRC_RPL_LIFETIME_UNIT (60)
+#endif
 /** @} */
-
-/**
- * @brief Interval of the void _update_lifetime() function
- */
-#define GNRC_RPL_LIFETIME_STEP (2)
 
 /**
  * @brief Default prefix length for the DODAG id
@@ -217,6 +370,10 @@ static inline bool GNRC_RPL_COUNTER_GREATER_THAN(uint8_t A, uint8_t B)
 
 /**
  * @brief Default prefix valid and preferred time for the DODAG id
+ * @note Currently not used, but needed for RIOs
+ * @see <a href="https://tools.ietf.org/html/rfc6550#section-6.7.5">
+ *          Route Information
+ *      </a>
  */
 #define GNRC_RPL_DEFAULT_PREFIX_LIFETIME  (0xFFFFFFFF)
 
@@ -230,18 +387,43 @@ static inline bool GNRC_RPL_COUNTER_GREATER_THAN(uint8_t A, uint8_t B)
 
 /**
  * @name Parameters used for DAO handling
+ * @see <a href="https://tools.ietf.org/html/rfc6550#section-17">
+            RPL Constants and Variables
+        </a>
  * @{
  */
-#define GNRC_RPL_DAO_SEND_RETRIES (4)
-#define GNRC_RPL_DEFAULT_WAIT_FOR_DAO_ACK (3)
-#define GNRC_RPL_REGULAR_DAO_INTERVAL (60)
-#define GNRC_RPL_DEFAULT_DAO_DELAY (5)
+#ifndef CONFIG_GNRC_RPL_DAO_SEND_RETRIES
+#define CONFIG_GNRC_RPL_DAO_SEND_RETRIES   (4)
+#endif
+#ifndef CONFIG_GNRC_RPL_DAO_ACK_DELAY
+#define CONFIG_GNRC_RPL_DAO_ACK_DELAY      (3000UL)
+#endif
+#ifndef CONFIG_GNRC_RPL_DAO_DELAY_LONG
+/**
+ * @brief Long delay for DAOs in milli seconds
+ */
+#define CONFIG_GNRC_RPL_DAO_DELAY_LONG     (60000UL)
+#endif
+#ifndef CONFIG_GNRC_RPL_DAO_DELAY_DEFAULT
+/**
+ * @brief Default delay for DAOs in milli seconds
+ */
+#define CONFIG_GNRC_RPL_DAO_DELAY_DEFAULT  (1000UL)
+#endif
+#ifndef CONFIG_GNRC_RPL_DAO_DELAY_JITTER
+/**
+ * @brief Jitter for DAOs in milli seconds
+ */
+#define CONFIG_GNRC_RPL_DAO_DELAY_JITTER   (1000UL)
+#endif
 /** @} */
 
 /**
- * @brief Cleanup timeout in seconds
+ * @brief Cleanup interval in milliseconds.
  */
-#define GNRC_RPL_CLEANUP_TIME (5)
+#ifndef CONFIG_GNRC_RPL_CLEANUP_TIME
+#define CONFIG_GNRC_RPL_CLEANUP_TIME (5 * MS_PER_SEC)
+#endif
 
 /**
  * @name Node Status
@@ -275,7 +457,7 @@ static inline bool GNRC_RPL_COUNTER_GREATER_THAN(uint8_t A, uint8_t B)
 /**
  * @brief Rank of the root node
  */
-#define GNRC_RPL_ROOT_RANK (256)
+#define GNRC_RPL_ROOT_RANK (CONFIG_GNRC_RPL_DEFAULT_MIN_HOP_RANK_INCREASE)
 
 /**
  *  @brief  DIS ICMPv6 code
@@ -336,9 +518,48 @@ static inline bool GNRC_RPL_COUNTER_GREATER_THAN(uint8_t A, uint8_t B)
 /** @} */
 
 /**
+ * @brief DIS Solicited Information option (numbers)
+ * @see <a href="https://tools.ietf.org/html/rfc6550#section-6.7.9">
+ *          RFC6550, section 6.7.9, Solicited Information
+ *      </a>
+ *  @{
+ */
+#define GNRC_RPL_DIS_SOLICITED_INFO_LENGTH  (19)
+#define GNRC_RPL_DIS_SOLICITED_INFO_FLAG_V  (1 << 7)
+#define GNRC_RPL_DIS_SOLICITED_INFO_FLAG_I  (1 << 6)
+#define GNRC_RPL_DIS_SOLICITED_INFO_FLAG_D  (1 << 5)
+/** @} */
+
+/**
  * @brief PID of the RPL thread.
  */
 extern kernel_pid_t gnrc_rpl_pid;
+
+/**
+ * @brief @see @ref GNRC_RPL_ALL_NODES_ADDR
+ */
+extern const ipv6_addr_t ipv6_addr_all_rpl_nodes;
+
+#ifdef MODULE_NETSTATS_RPL
+/**
+ * @brief Statistics for RPL control messages
+ */
+extern netstats_rpl_t gnrc_rpl_netstats;
+#endif
+
+/**
+ * @brief Number of DIS retries before parent times out
+ */
+#ifndef CONFIG_GNRC_RPL_PARENT_TIMEOUT_DIS_RETRIES
+#define CONFIG_GNRC_RPL_PARENT_TIMEOUT_DIS_RETRIES (3)
+#endif
+
+/**
+ * @brief Default network interface for GNRC RPL
+ */
+#ifndef CONFIG_GNRC_RPL_DEFAULT_NETIF
+#define CONFIG_GNRC_RPL_DEFAULT_NETIF (KERNEL_PID_UNDEF)
+#endif
 
 /**
  * @brief Initialization of the RPL thread.
@@ -370,23 +591,26 @@ gnrc_rpl_instance_t *gnrc_rpl_root_init(uint8_t instance_id, ipv6_addr_t *dodag_
  * @brief   Send a DIO of the @p instance to the @p destination.
  *
  * @param[in] instance          Pointer to the RPL instance.
- * @param[in] destination       IPv6 addres of the destination.
+ * @param[in] destination       IPv6 address of the destination.
  */
 void gnrc_rpl_send_DIO(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination);
 
 /**
- * @brief   Send a DIS of the @p instace to the @p destination.
+ * @brief   Send a DIS of the @p instance to the @p destination.
  *
  * @param[in] instance          Pointer to the RPL instance, optional.
- * @param[in] destination       IPv6 addres of the destination.
+ * @param[in] destination       IPv6 address of the destination.
+ * @param[in] options           Pointer to the first option to be attached.
+ * @param[in] num_opts          The number of options to attach.
  */
-void gnrc_rpl_send_DIS(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination);
+void gnrc_rpl_send_DIS(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination,
+                       gnrc_rpl_internal_opt_t **options, size_t num_opts);
 
 /**
  * @brief   Send a DAO of the @p dodag to the @p destination.
  *
  * @param[in] instance          Pointer to the instance.
- * @param[in] destination       IPv6 addres of the destination.
+ * @param[in] destination       IPv6 address of the destination.
  * @param[in] lifetime          Lifetime of the route to announce.
  */
 void gnrc_rpl_send_DAO(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination, uint8_t lifetime);
@@ -395,8 +619,8 @@ void gnrc_rpl_send_DAO(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination, 
  * @brief   Send a DAO-ACK of the @p instance to the @p destination.
  *
  * @param[in] instance          Pointer to the RPL instance.
- * @param[in] destination       IPv6 addres of the destination.
- * @param[in] seq				Sequence number to be acknowledged.
+ * @param[in] destination       IPv6 address of the destination.
+ * @param[in] seq               Sequence number to be acknowledged.
  */
 void gnrc_rpl_send_DAO_ACK(gnrc_rpl_instance_t *instance, ipv6_addr_t *destination, uint8_t seq);
 
@@ -404,37 +628,49 @@ void gnrc_rpl_send_DAO_ACK(gnrc_rpl_instance_t *instance, ipv6_addr_t *destinati
  * @brief   Parse a DIS.
  *
  * @param[in] dis       Pointer to the DIS message.
+ * @param[in] iface     Interface PID of the incoming DIS.
  * @param[in] src       Pointer to the source address of the IPv6 packet.
  * @param[in] dst       Pointer to the destination address of the IPv6 packet.
  * @param[in] len       Length of the IPv6 packet.
  */
-void gnrc_rpl_recv_DIS(gnrc_rpl_dis_t *dis, ipv6_addr_t *src, ipv6_addr_t *dst, uint16_t len);
+void gnrc_rpl_recv_DIS(gnrc_rpl_dis_t *dis, kernel_pid_t iface, ipv6_addr_t *src,
+                       ipv6_addr_t *dst, uint16_t len);
 
 /**
  * @brief   Parse a DIO.
  *
  * @param[in] dio       Pointer to the DIO message.
+ * @param[in] iface     Interface PID of the incoming DIO.
  * @param[in] src       Pointer to the source address of the IPv6 packet.
+ * @param[in] dst       Pointer to the destination address of the IPv6 packet.
  * @param[in] len       Length of the IPv6 packet.
  */
-void gnrc_rpl_recv_DIO(gnrc_rpl_dio_t *dio, ipv6_addr_t *src, uint16_t len);
+void gnrc_rpl_recv_DIO(gnrc_rpl_dio_t *dio, kernel_pid_t iface, ipv6_addr_t *src, ipv6_addr_t *dst,
+                       uint16_t len);
 
 /**
  * @brief   Parse a DAO.
  *
  * @param[in] dao       Pointer to the DAO message.
+ * @param[in] iface     Interface PID of the incoming DIO.
  * @param[in] src       Pointer to the source address of the IPv6 packet.
+ * @param[in] dst       Pointer to the destination address of the IPv6 packet.
  * @param[in] len       Length of the IPv6 packet.
  */
-void gnrc_rpl_recv_DAO(gnrc_rpl_dao_t *dao, ipv6_addr_t *src, uint16_t len);
+void gnrc_rpl_recv_DAO(gnrc_rpl_dao_t *dao, kernel_pid_t iface, ipv6_addr_t *src, ipv6_addr_t *dst,
+                       uint16_t len);
 
 /**
  * @brief   Parse a DAO-ACK.
  *
  * @param[in] dao_ack   Pointer to the DAO-ACK message.
+ * @param[in] iface     Interface PID of the incoming DIO.
+ * @param[in] src       Pointer to the source address of the IPv6 packet.
+ * @param[in] dst       Pointer to the destination address of the IPv6 packet.
  * @param[in] len       Length of the IPv6 packet.
  */
-void gnrc_rpl_recv_DAO_ACK(gnrc_rpl_dao_ack_t *dao_ack, uint16_t len);
+void gnrc_rpl_recv_DAO_ACK(gnrc_rpl_dao_ack_t *dao_ack, kernel_pid_t iface, ipv6_addr_t *src,
+                           ipv6_addr_t *dst, uint16_t len);
 
 /**
  * @brief   Delay the DAO sending interval
@@ -467,11 +703,13 @@ gnrc_rpl_instance_t *gnrc_rpl_root_instance_init(uint8_t instance_id, ipv6_addr_
  * @brief Send a control message
  *
  * @param[in] pkt               gnrc_pktnsip_t to send
+ * @param[in] iface             Interface PID to send this pkt to
  * @param[in] src               Source address of the packet
  * @param[in] dst               Destination address of the packet
  * @param[in] dodag_id          Id of the DODAG
  */
-void gnrc_rpl_send(gnrc_pktsnip_t *pkt, ipv6_addr_t *src, ipv6_addr_t *dst, ipv6_addr_t *dodag_id);
+void gnrc_rpl_send(gnrc_pktsnip_t *pkt, kernel_pid_t iface, ipv6_addr_t *src, ipv6_addr_t *dst,
+                   ipv6_addr_t *dodag_id);
 
 /**
  * @brief Generate a local or global instance id
@@ -482,9 +720,26 @@ void gnrc_rpl_send(gnrc_pktsnip_t *pkt, ipv6_addr_t *src, ipv6_addr_t *dst, ipv6
  * @return  Global instance id, otherwise.
  */
 uint8_t gnrc_rpl_gen_instance_id(bool local);
+
+/**
+ * @brief (De-)Activate the transmission of Prefix Information Options within DIOs
+ *        for a particular DODAG. This function has no effect if
+ *        CONFIG_GNRC_RPL_WITHOUT_PIO is set.
+ *
+ * @param[in] dodag             Pointer to the DODAG
+ * @param[in] status            true for activating PIOs and false for deactivating them
+ */
+static inline void gnrc_rpl_config_pio(gnrc_rpl_dodag_t *dodag, bool status)
+{
+    if (!IS_ACTIVE(CONFIG_GNRC_RPL_WITHOUT_PIO)) {
+        dodag->dio_opts = (dodag->dio_opts & ~GNRC_RPL_REQ_DIO_OPT_PREFIX_INFO) |
+                          (status << GNRC_RPL_REQ_DIO_OPT_PREFIX_INFO_SHIFT);
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* GNRC_RPL_H_ */
+#endif /* NET_GNRC_RPL_H */
 /** @} */

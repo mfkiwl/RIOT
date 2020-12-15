@@ -18,6 +18,11 @@
  * @}
  */
 
+/* needed for posix usleep */
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 600
+#endif
+
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -27,6 +32,11 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#ifdef SOCK_HAS_IPV6
+#include "net/ipv6/addr.h"     /* for interface parsing */
+#include "net/netif.h"         /* for resolving ipv6 scope */
+#endif /* SOCK_HAS_IPV6 */
 
 #include "thread.h"
 
@@ -45,7 +55,7 @@ static void *_server_thread(void *args)
     msg_init_queue(server_msg_queue, SERVER_MSG_QUEUE_SIZE);
     server_socket = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
     /* parse port */
-    port = (uint16_t)atoi((char *)args);
+    port = atoi((char *)args);
     if (port == 0) {
         puts("Error: invalid port specified");
         return NULL;
@@ -93,13 +103,27 @@ static int udp_send(char *addr_str, char *port_str, char *data, unsigned int num
     src.sin6_family = AF_INET6;
     dst.sin6_family = AF_INET6;
     memset(&src.sin6_addr, 0, sizeof(src.sin6_addr));
+    /* parse interface id */
+#ifdef SOCK_HAS_IPV6
+    char *iface;
+    iface = ipv6_addr_split_iface(addr_str); /* also removes interface id */
+    if (iface) {
+        netif_t *netif = netif_get_by_name(iface);
+        if (netif) {
+            dst.sin6_scope_id = (uint32_t) netif_get_id(netif);
+        }
+        else {
+            printf("unknown network interface %s\n", iface);
+        }
+    }
+#endif /* SOCK_HAS_IPV6 */
     /* parse destination address */
     if (inet_pton(AF_INET6, addr_str, &dst.sin6_addr) != 1) {
         puts("Error: unable to parse destination address");
         return 1;
     }
     /* parse port */
-    port = (uint16_t)atoi(port_str);
+    port = atoi(port_str);
     dst.sin6_port = htons(port);
     src.sin6_port = htons(port);
     s = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
@@ -155,10 +179,10 @@ int udp_cmd(int argc, char **argv)
             return 1;
         }
         if (argc > 5) {
-            num = (uint32_t)atoi(argv[5]);
+            num = atoi(argv[5]);
         }
         if (argc > 6) {
-            delay = (uint32_t)atoi(argv[6]);
+            delay = atoi(argv[6]);
         }
         return udp_send(argv[2], argv[3], argv[4], num, delay);
     }

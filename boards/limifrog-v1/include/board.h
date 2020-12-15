@@ -7,19 +7,17 @@
  */
 
 /**
- * @defgroup    boards_limifrog-v1 LimiFrog Version 1
- * @ingroup     boards
- * @brief       Board specific files for the limifrog-v1 board.
+ * @ingroup     boards_limifrog-v1
  * @{
  *
  * @file
- * @brief       Board specific definitions for the limifrog-v1  board.
+ * @brief       Board specific definitions for the limifrog-v1 board
  *
  * @author      Katja Kirstein <katja.kirstein@haw-hamburg.de>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
 #include <stdint.h>
 
@@ -31,46 +29,36 @@ extern "C" {
 #endif
 
 /**
- * @name Define the nominal CPU core clock in this board
- */
-#define F_CPU               CLOCK_CORECLOCK
-/** @} */
-
-/**
- * @name Define the UART to be used as stdio and its baudrate
+ * @name    LED pin definitions and handlers
  * @{
  */
-#define STDIO               UART_0
-#define STDIO_BAUDRATE      (115200U)
-#define STDIO_RX_BUFSIZE    (64U)
-/** @} */
+#define LED0_PIN            GPIO_PIN(PORT_C, 3)
 
-/**
- * @name LED pin definitions
- * @{
- */
-#define LED_RED_PORT        (GPIOC)
-#define LED_RED_PIN         (3)
-#define LED_RED_GPIO        GPIO_PIN(PORT_C,3)
-/** @} */
+#define LED0_PORT           (GPIOC)
+#define LED0_MASK           (1 << 3)
 
-/**
- * @name Macros for controlling the on-board LEDs.
- * @{
- */
-#define LED_GREEN_ON
-#define LED_GREEN_OFF
-#define LED_GREEN_TOGGLE
-#define LED_ORANGE_ON
-#define LED_ORANGE_OFF
-#define LED_ORANGE_TOGGLE
-#define LED_RED_ON          (LED_RED_PORT->BSRRL = (1 << LED_RED_PIN))
-#define LED_RED_OFF         (LED_RED_PORT->BSRRH = (1 << LED_RED_PIN))
-#define LED_RED_TOGGLE      (LED_RED_PORT->ODR ^= (1 << LED_RED_PIN))
+#define LED0_ON             (LED0_PORT->BSRR = LED0_MASK)
+#define LED0_OFF            (LED0_PORT->BSRR = (LED0_MASK << 16))
+#define LED0_TOGGLE         (LED0_PORT->ODR  ^= LED0_MASK)
  /** @} */
 
+ /**
+  * @name    xtimer configuration
+  * @{
+  */
+ #define XTIMER_WIDTH        (16U)
+ /** @} */
+
+ /**
+ * @name Define the interface to the LIS3MDL 3-axis magnetometer
+ * @{
+ */
+#define LIS3MDL_PARAM_I2C        (I2C_DEV(1))
+#define LIS3MDL_PARAM_ADDR       (0x28)
+/** @} */
+
 /**
- * @brief Initialize board specific hardware, including clock, LEDs and std-IO
+ * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
  */
 void board_init(void);
 
@@ -78,5 +66,5 @@ void board_init(void);
 }
 #endif
 
-#endif /* BOARD_H_ */
+#endif /* BOARD_H */
 /** @} */

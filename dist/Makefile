@@ -25,18 +25,23 @@ RIOTBASE ?= $(CURDIR)/../../RIOT
 # Uncomment this to enable code in RIOT that does safety checking
 # which is not needed in a production environment but helps in the
 # development process:
-#CFLAGS += -DDEVELHELP
+#DEVELHELP = 1
 
-# Change this to 0 show compiler invocation lines by default:
+# Change this to 0 to show compiler invocation lines by default:
 QUIET ?= 1
 
 # Modules to include:
 
 #USEMODULE += shell
-#USEMODULE += posix
-#USEMODULE += vtimer
+#USEMODULE += posix_headers
+#USEMODULE += xtimer
 
-#export INCLUDES += -Iapplication_include
+# If your application is very simple and doesn't use modules that use
+# messaging, it can be disabled to save some memory:
+
+#DISABLE_MODULE += core_msg
+
+#INCLUDES += -Iapplication_include
 
 # Specify custom dependencies for your application here ...
 # APPDEPS = app_data.h config.h

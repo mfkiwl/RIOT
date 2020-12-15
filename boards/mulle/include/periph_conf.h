@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015 Eistec AB
+ *               2016 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser General
  * Public License v2.1. See the file LICENSE in the top level directory for more
@@ -8,17 +9,20 @@
 
 
 /**
- * @ingroup     board_mulle
+ * @ingroup     boards_mulle
  * @{
  *
  * @file
  * @name        Peripheral MCU configuration for the Eistec Mulle
  *
  * @author      Joakim Nohlgård <joakim.nohlgard@eistec.se>
+ * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef MULLE_PERIPH_CONF_H_
-#define MULLE_PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
+
+#include "periph_cpu.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -29,494 +33,335 @@ extern "C"
  * @name Clock system configuration
  * @{
  */
-#define KINETIS_CPU_USE_MCG               1
+/* The crystal on the Mulle is designed for 12.5 pF load capacitance. According
+ * to the data sheet, the K60 will have a 5 pF parasitic capacitance on the
+ * XTAL32/EXTAL32 connection. The board traces might give some minor parasitic
+ * capacitance as well. */
+/* Use the equation
+ * CL = (C1 * C2) / (C1 + C2) + Cstray
+ * with C1 == C2:
+ * C1 = 2 * (CL - Cstray)
+ */
+/* enable 14pF load capacitor which will yield a crystal load capacitance of 12 pF */
+#define RTC_LOAD_CAP_BITS   (RTC_CR_SC8P_MASK | RTC_CR_SC4P_MASK | RTC_CR_SC2P_MASK)
 
-#define KINETIS_MCG_USE_ERC               1
-#define KINETIS_MCG_USE_PLL               0
-#define KINETIS_MCG_DCO_RANGE             (96000000U)
-#define KINETIS_MCG_ERC_OSCILLATOR        0
-#define KINETIS_MCG_ERC_FRDIV             0
-#define KINETIS_MCG_ERC_RANGE             0
-#define KINETIS_MCG_ERC_FREQ              (32768U)
-
-/* Base clocks, used by SystemCoreClockUpdate */
-/** Value of the external crystal or oscillator clock frequency in Hz */
-#define CPU_XTAL_CLK_HZ                 8000000u
-/** Value of the external 32k crystal or oscillator clock frequency in Hz */
-#define CPU_XTAL32k_CLK_HZ              32768u
-/** Value of the slow internal oscillator clock frequency in Hz  */
-#define CPU_INT_SLOW_CLK_HZ             32768u
-/** Value of the fast internal oscillator clock frequency in Hz  */
-#define CPU_INT_FAST_CLK_HZ             4000000u
-/** Default System clock value */
-#define DEFAULT_SYSTEM_CLOCK            (CPU_XTAL32k_CLK_HZ * 2929u)
-
-/** @todo Investigate the side effects of making F_CPU run-time variable */
-#define F_CPU DEFAULT_SYSTEM_CLOCK
-
+static const clock_config_t clock_config = {
+    /*
+     * This configuration results in the system running from the FLL output with
+     * the following clock frequencies:
+     * Core:  48 MHz
+     * Bus:   48 MHz
+     * Flex:  24 MHz
+     * Flash: 24 MHz
+     */
+    /* The board has a 16 MHz crystal, though it is not used in this configuration */
+    /* This configuration uses the RTC crystal to provide the base clock, it
+     * should have better accuracy than the internal slow clock, and lower power
+     * consumption than using the 16 MHz crystal and the OSC0 module */
+    .clkdiv1 = SIM_CLKDIV1_OUTDIV1(0) | SIM_CLKDIV1_OUTDIV2(0) |
+               SIM_CLKDIV1_OUTDIV3(1) | SIM_CLKDIV1_OUTDIV4(1),
+    .rtc_clc = RTC_LOAD_CAP_BITS,
+    .osc32ksel = SIM_SOPT1_OSC32KSEL(2),
+    .clock_flags =
+        /* no OSC0_EN, the RTC module provides the clock input signal for the FLL */
+        KINETIS_CLOCK_RTCOSC_EN |
+        KINETIS_CLOCK_USE_FAST_IRC |
+        0,
+    .default_mode = KINETIS_MCG_MODE_FEE,
+    .erc_range = KINETIS_MCG_ERC_RANGE_LOW, /* Input clock is 32768 Hz */
+    /* 16 pF capacitors yield ca 10 pF load capacitance as required by the
+     * onboard xtal, not used when OSC0 is disabled */
+    .osc_clc = OSC_CR_SC16P_MASK,
+    .oscsel = MCG_C7_OSCSEL(1), /* Use RTC for external clock */
+    .fcrdiv = MCG_SC_FCRDIV(0), /* Fast IRC divide by 1 => 4 MHz */
+    .fll_frdiv = MCG_C1_FRDIV(0b000), /* Divide by 1 => FLL input 32768 Hz */
+    .fll_factor_fei = KINETIS_MCG_FLL_FACTOR_1464, /* FLL freq = 48 MHz */
+    .fll_factor_fee = KINETIS_MCG_FLL_FACTOR_1464, /* FLL freq = 48 MHz */
+    /* PLL is unavailable when using a 32768 Hz source clock, so the
+     * configuration below can only be used if the above config is modified to
+     * use the 16 MHz crystal instead of the RTC. */
+    .pll_prdiv = MCG_C5_PRDIV0(0b00111), /* Divide by 8 */
+    .pll_vdiv = MCG_C6_VDIV0(0b01100), /* Multiply by 36 => PLL freq = 72 MHz */
+};
+#define CLOCK_CORECLOCK              (48000000ul)
+#define CLOCK_BUSCLOCK               (CLOCK_CORECLOCK / 1)
 /** @} */
 
 /**
  * @name Timer configuration
  * @{
  */
-#define TIMER_NUMOF             (1U)
-#define TIMER_0_EN              1
-#define TIMER_1_EN              0
-#define TIMER_IRQ_PRIO          CPU_DEFAULT_IRQ_PRIO
-#define TIMER_BASE              PIT
-#define TIMER_MAX_VALUE         (0xffffffff)
-#define TIMER_CLOCK             SystemBusClock
-#define TIMER_CLKEN()           (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_PIT_SHIFT) = 1)
+#define PIT_NUMOF               (2U)
+#define PIT_CONFIG {                 \
+        {                            \
+            .prescaler_ch = 0,       \
+            .count_ch = 1,           \
+        },                           \
+        {                            \
+            .prescaler_ch = 2,       \
+            .count_ch = 3,           \
+        },                           \
+    }
+#define LPTMR_NUMOF             (1U)
+#define LPTMR_CONFIG { \
+        { \
+            .dev = LPTMR0, \
+            .irqn = LPTMR0_IRQn, \
+            .src = 2, \
+            .base_freq = 32768u, \
+        } \
+    }
+#define TIMER_NUMOF             ((PIT_NUMOF) + (LPTMR_NUMOF))
 
-/* Timer 0 configuration */
-#define TIMER_0_PRESCALER_CH    0
-#define TIMER_0_COUNTER_CH      1
-#define TIMER_0_ISR             isr_pit1
-#define TIMER_0_IRQ_CHAN        PIT1_IRQn
-
-/* Timer 1 configuration */
-#define TIMER_1_PRESCALER_CH    2
-#define TIMER_1_COUNTER_CH      3
-#define TIMER_1_ISR             isr_pit3
-#define TIMER_1_IRQ_CHAN        PIT3_IRQn
+#define PIT_BASECLOCK           (CLOCK_BUSCLOCK)
+#define PIT_ISR_0               isr_pit1
+#define PIT_ISR_1               isr_pit3
+#define LPTMR_ISR_0             isr_lptmr0
 
 /** @} */
-
 
 /**
  * @name UART configuration
  * @{
  */
-#define UART_NUMOF          (2U)
-#define UART_0_EN           1
-#define UART_1_EN           1
-#define UART_2_EN           0
-#define UART_3_EN           0
-#define UART_4_EN           0
-#define UART_IRQ_PRIO       CPU_DEFAULT_IRQ_PRIO
+static const uart_conf_t uart_config[] = {
+    {
+        .dev    = UART0,
+        .freq   = CLOCK_CORECLOCK,
+        .pin_rx = GPIO_PIN(PORT_A, 15),
+        .pin_tx = GPIO_PIN(PORT_A, 14),
+        .pcr_rx = PORT_PCR_MUX(3),
+        .pcr_tx = PORT_PCR_MUX(3),
+        .irqn   = UART0_RX_TX_IRQn,
+        .scgc_addr = &SIM->SCGC4,
+        .scgc_bit = SIM_SCGC4_UART0_SHIFT,
+        .mode   = UART_MODE_8N1,
+        .type   = KINETIS_UART,
+    },
+    {
+        .dev    = UART1,
+        .freq   = CLOCK_CORECLOCK,
+        .pin_rx = GPIO_PIN(PORT_C, 3),
+        .pin_tx = GPIO_PIN(PORT_C, 4),
+        .pcr_rx = PORT_PCR_MUX(3),
+        .pcr_tx = PORT_PCR_MUX(3),
+        .irqn   = UART1_RX_TX_IRQn,
+        .scgc_addr = &SIM->SCGC4,
+        .scgc_bit = SIM_SCGC4_UART1_SHIFT,
+        .mode   = UART_MODE_8N1,
+        .type   = KINETIS_UART,
+    },
+};
 
-/* UART 0 device configuration */
-#define UART_0_DEV          UART1
-#define UART_0_CLKEN()      (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_UART1_SHIFT) = 1)
-#define UART_0_CLKDIS()     (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_UART1_SHIFT) = 0)
-#define UART_0_CLK          (SystemSysClock)
-#define UART_0_IRQ_CHAN     UART1_RX_TX_IRQn
-#define UART_0_ISR          isr_uart1_status
-/* UART 0 pin configuration */
-#define UART_0_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTC_SHIFT) = 1)
-#define UART_0_PORT         PORTC
-#define UART_0_TX_PIN       4
-#define UART_0_RX_PIN       3
-/* Function number in pin multiplex, see K60 Sub-Family Reference Manual,
- * section 10.3.1 K60 Signal Multiplexing and Pin Assignments */
-#define UART_0_AF           3
-#define UART_0_TX_PCR_MUX   3
-#define UART_0_RX_PCR_MUX   3
+#define UART_0_ISR          (isr_uart0_rx_tx)
+#define UART_1_ISR          (isr_uart1_rx_tx)
 
-/* UART 1 device configuration */
-#define UART_1_DEV          UART0
-#define UART_1_CLKEN()      (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_UART0_SHIFT) = 1)
-#define UART_1_CLKDIS()     (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_UART0_SHIFT) = 0)
-#define UART_1_CLK          (SystemSysClock)
-#define UART_1_IRQ_CHAN     UART0_RX_TX_IRQn
-#define UART_1_ISR          isr_uart0_status
-/* UART 1 pin configuration */
-#define UART_1_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTA_SHIFT) = 1)
-#define UART_1_PORT         PORTA
-#define UART_1_TX_PIN       14
-#define UART_1_RX_PIN       15
-/* Function number in pin multiplex, see K60 Sub-Family Reference Manual,
- * section 10.3.1 K60 Signal Multiplexing and Pin Assignments */
-#define UART_1_AF           3
-#define UART_1_TX_PCR_MUX   3
-#define UART_1_RX_PCR_MUX   3
-
+#define UART_NUMOF          ARRAY_SIZE(uart_config)
 /** @} */
-
 
 /**
- * @name ADC configuration
+ * @name    ADC configuration
  * @{
  */
-#define ADC_NUMOF           (2U)
-#define ADC_0_EN            1
-#define ADC_1_EN            1
-#define ADC_MAX_CHANNELS    6
+static const adc_conf_t adc_config[] = {
+    /* internal: temperature sensor */
+    /* The temperature sensor has a very high output impedance, it must not be
+     * sampled using hardware averaging, or the sampled values will be garbage */
+    [ 0] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 26, .avg = ADC_AVG_NONE },
+    /* internal: band gap */
+    [ 1] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 27, .avg = ADC_AVG_MAX },
+    /* internal: V_REFSH */
+    [ 2] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 29, .avg = ADC_AVG_MAX },
+    /* internal: V_REFSL */
+    [ 3] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 30, .avg = ADC_AVG_MAX },
+    /* internal: DAC0 module output level */
+    [ 4] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 23, .avg = ADC_AVG_MAX },
+    /* internal: VREF module output level */
+    [ 5] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 18, .avg = ADC_AVG_MAX },
+    /* on board connection to Mulle Vbat/2 on PGA1_DP pin */
+    [ 6] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan =  0, .avg = ADC_AVG_MAX },
+    /* on board connection to Mulle Vchr/2 on PGA1_DM pin */
+    [ 7] = { .dev = ADC1, .pin = GPIO_UNDEF,           .chan = 19, .avg = ADC_AVG_MAX },
+    /* expansion port PGA0_DP pin */
+    [ 8] = { .dev = ADC0, .pin = GPIO_UNDEF,           .chan =  0, .avg = ADC_AVG_MAX },
+    /* expansion port PGA0_DM pin */
+    [ 9] = { .dev = ADC0, .pin = GPIO_UNDEF,           .chan = 19, .avg = ADC_AVG_MAX },
+    /* expansion port PTA17 */
+    [10] = { .dev = ADC1, .pin = GPIO_PIN(PORT_A, 17), .chan = 17, .avg = ADC_AVG_MAX },
+    /* expansion port PTB0  */
+    [11] = { .dev = ADC1, .pin = GPIO_PIN(PORT_B,  0), .chan =  8, .avg = ADC_AVG_MAX },
+    /* expansion port PTC0  */
+    [12] = { .dev = ADC0, .pin = GPIO_PIN(PORT_C,  0), .chan = 14, .avg = ADC_AVG_MAX },
+    /* expansion port PTC8  */
+    [13] = { .dev = ADC1, .pin = GPIO_PIN(PORT_C,  8), .chan =  4, .avg = ADC_AVG_MAX },
+    /* expansion port PTC9  */
+    [14] = { .dev = ADC1, .pin = GPIO_PIN(PORT_C,  9), .chan =  5, .avg = ADC_AVG_MAX },
+    /* expansion port PTC10 */
+    [15] = { .dev = ADC1, .pin = GPIO_PIN(PORT_C, 10), .chan =  6, .avg = ADC_AVG_MAX },
+    /* expansion port PTC11 */
+    [16] = { .dev = ADC1, .pin = GPIO_PIN(PORT_C, 11), .chan =  7, .avg = ADC_AVG_MAX },
+};
 
-/* ADC 0 configuration */
-#define ADC_0_DEV           ADC0
-#define ADC_0_CHANNELS      4
-#define ADC_0_CLKEN()       (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_ADC0_SHIFT) = 1)
-#define ADC_0_CLKDIS()      (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_ADC0_SHIFT) = 0)
-#define ADC_0_PORT_CLKEN()  /* no PORT pins configured */
-#define ADC_0_MODULE_CLOCK  SystemBusClock
-/* ADC 0 channel 0 pin config */
-#define ADC_0_CH0           26 /* Temp sensor channel */
-#define ADC_0_CH0_PORT      0 /* this channel is not part of the pin mux on this CPU */
-#define ADC_0_CH0_PIN       0
-#define ADC_0_CH0_PIN_AF    0
-/* ADC 0 channel 1 pin config */
-#define ADC_0_CH1           27 /* Band gap channel */
-#define ADC_0_CH1_PORT      0 /* this channel is not part of the pin mux on this CPU */
-#define ADC_0_CH1_PIN       0
-#define ADC_0_CH1_PIN_AF    0
-/* ADC 0 channel 2 pin config */
-#define ADC_0_CH2           29 /* V_REFSH */
-#define ADC_0_CH2_PORT      0 /* this channel is not part of the pin mux on this CPU */
-#define ADC_0_CH2_PIN       0
-#define ADC_0_CH2_PIN_AF    0
-/* ADC 0 channel 3 pin config */
-#define ADC_0_CH3           30 /* V_REFSL */
-#define ADC_0_CH3_PORT      0 /* this channel is not part of the pin mux on this CPU */
-#define ADC_0_CH3_PIN       0
-#define ADC_0_CH3_PIN_AF    0
-/* ADC 0 channel 4 pin config */
-#define ADC_0_CH4           4
-#define ADC_0_CH4_PORT      0
-#define ADC_0_CH4_PIN       0
-#define ADC_0_CH4_PIN_AF    0
-/* ADC 0 channel 5 pin config */
-#define ADC_0_CH5           5
-#define ADC_0_CH5_PORT      0
-#define ADC_0_CH5_PIN       0
-#define ADC_0_CH5_PIN_AF    0
-
-/* ADC 1 configuration */
-#define ADC_1_DEV           ADC1
-#define ADC_1_CHANNELS      2
-#define ADC_1_CLKEN()       (BITBAND_REG32(SIM->SCGC3, SIM_SCGC3_ADC1_SHIFT) = 1)
-#define ADC_1_CLKDIS()      (BITBAND_REG32(SIM->SCGC3, SIM_SCGC3_ADC1_SHIFT) = 0)
-#define ADC_1_PORT_CLKEN()  /* no PORT pins configured */
-#define ADC_1_MODULE_CLOCK  SystemBusClock
-/* ADC 1 channel 0 pin config */
-#define ADC_1_CH0           0 /* DADP0, connected externally to Mulle Vbat/2 on PGA1_DP */
-#define ADC_1_CH0_PORT      0 /* this channel is not part of the pin mux on this CPU */
-#define ADC_1_CH0_PIN       0
-#define ADC_1_CH0_PIN_AF    0
-/* ADC 1 channel 1 pin config */
-#define ADC_1_CH1           19 /* AD19, connected externally to Mulle Vchr/2 on PGA1_DM */
-#define ADC_1_CH1_PORT      0  /* this channel is not part of the pin mux on this CPU */
-#define ADC_1_CH1_PIN       0
-#define ADC_1_CH1_PIN_AF    0
-/* ADC 1 channel 2 pin config */
-#define ADC_1_CH2           12
-#define ADC_1_CH2_PIN       0
-#define ADC_1_CH2_PIN_AF    0
-#define ADC_1_CH2_PORT      0
-/* ADC 1 channel 3 pin config */
-#define ADC_1_CH3           13
-#define ADC_1_CH3_PIN       0
-#define ADC_1_CH3_PIN_AF    0
-#define ADC_1_CH3_PORT      0
-/* ADC 1 channel 4 pin config */
-#define ADC_1_CH4           14
-#define ADC_1_CH4_PIN       0
-#define ADC_1_CH4_PIN_AF    0
-#define ADC_1_CH4_PORT      0
-/* ADC 1 channel 5 pin config */
-#define ADC_1_CH5           15
-#define ADC_1_CH5_PIN       0
-#define ADC_1_CH5_PIN_AF    0
-#define ADC_1_CH5_PORT      0
+#define ADC_NUMOF           ARRAY_SIZE(adc_config)
+/*
+ * K60D ADC reference settings:
+ * 0: VREFH/VREFL external pin pair
+ * 1: VREF_OUT internal 1.2 V reference (VREF module must be enabled)
+ * 2-3: reserved
+ */
+#define ADC_REF_SETTING     0
 /** @} */
-
 
 /**
- * @name PWM configuration
+ * @name    DAC configuration
  * @{
  */
-#define PWM_NUMOF           (2U)
-#define PWM_0_EN            1
-#define PWM_1_EN            1
-#define PWM_MAX_CHANNELS    8
-#define PWM_MAX_VALUE       0xffff
+static const dac_conf_t dac_config[] = {
+    {
+        .dev       = DAC0,
+        .scgc_addr = &SIM->SCGC2,
+        .scgc_bit  = SIM_SCGC2_DAC0_SHIFT
+    }
+};
 
-/* PWM 0 device configuration */
-#define PWM_0_DEV           FTM0
-#define PWM_0_CHANNELS      2
-#define PWM_0_CLK           (SystemBusClock)
-#define PWM_0_CLKEN()       (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_FTM0_SHIFT) = 1)
-#define PWM_0_CLKDIS()      (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_FTM0_SHIFT) = 0)
-
-/* PWM 0 pin configuration */
-#define PWM_0_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTC_SHIFT) = 1)
-
-#define PWM_0_PIN_CH0       1
-#define PWM_0_FTMCHAN_CH0   0
-#define PWM_0_PORT_CH0      PORTC
-#define PWM_0_PIN_AF_CH0    4
-
-#define PWM_0_PIN_CH1       2
-#define PWM_0_FTMCHAN_CH1   1
-#define PWM_0_PORT_CH1      PORTC
-#define PWM_0_PIN_AF_CH1    4
-
-/* PWM 1 device configuration */
-#define PWM_1_DEV           FTM1
-#define PWM_1_CHANNELS      2
-#define PWM_1_CLK           (SystemBusClock)
-#define PWM_1_CLKEN()       (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_FTM1_SHIFT) = 1)
-#define PWM_1_CLKDIS()      (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_FTM1_SHIFT) = 0)
-
-/* PWM 1 pin configuration */
-#define PWM_1_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTA_SHIFT) = 1)
-
-#define PWM_1_PIN_CH0       12
-#define PWM_1_FTMCHAN_CH0   0
-#define PWM_1_PORT_CH0      PORTA
-#define PWM_1_PIN_AF_CH0    3
-
-#define PWM_1_PIN_CH1       13
-#define PWM_1_FTMCHAN_CH1   1
-#define PWM_1_PORT_CH1      PORTA
-#define PWM_1_PIN_AF_CH1    3
-
+#define DAC_NUMOF           ARRAY_SIZE(dac_config)
 /** @} */
 
+/**
+ * @name    PWM configuration
+ * @{
+ */
+static const pwm_conf_t pwm_config[] = {
+    {
+        .ftm        = FTM0,
+        .chan       = {
+            { .pin = GPIO_PIN(PORT_C, 1), .af = 4, .ftm_chan = 0 },
+            { .pin = GPIO_PIN(PORT_C, 2), .af = 4, .ftm_chan = 1 },
+            { .pin = GPIO_UNDEF,          .af = 0, .ftm_chan = 0 },
+            { .pin = GPIO_UNDEF,          .af = 0, .ftm_chan = 0 }
+        },
+        .chan_numof = 2,
+        .ftm_num    = 0
+    },
+    {
+        .ftm        = FTM1,
+        .chan       = {
+            { .pin = GPIO_PIN(PORT_A, 12), .af = 3, .ftm_chan = 0 },
+            { .pin = GPIO_PIN(PORT_A, 13), .af = 3, .ftm_chan = 1 },
+            { .pin = GPIO_UNDEF,           .af = 0, .ftm_chan = 0 },
+            { .pin = GPIO_UNDEF,           .af = 0, .ftm_chan = 0 }
+        },
+        .chan_numof = 2,
+        .ftm_num    = 1
+    }
+};
+
+#define PWM_NUMOF           ARRAY_SIZE(pwm_config)
+/** @} */
 
 /**
  * @name SPI configuration
+ *
+ * Clock configuration values based on the configured 47988736Hz module clock.
+ *
+ * Auto-generated by:
+ * cpu/kinetis/dist/calc_spi_scalers/calc_spi_scalers.c
+ *
  * @{
  */
-#define SPI_NUMOF           3
-#define SPI_0_EN            1
-#define SPI_1_EN            1
-#define SPI_2_EN            1
-#define SPI_3_EN            0
-#define SPI_4_EN            0
-#define SPI_5_EN            0
-#define SPI_6_EN            0
-#define SPI_7_EN            0
+static const uint32_t spi_clk_config[] = {
+    (
+        SPI_CTAR_PBR(0) | SPI_CTAR_BR(8) |          /* -> 93728Hz */
+        SPI_CTAR_PCSSCK(0) | SPI_CTAR_CSSCK(8) |
+        SPI_CTAR_PASC(0) | SPI_CTAR_ASC(8) |
+        SPI_CTAR_PDT(0) | SPI_CTAR_DT(8)
+    ),
+    (
+        SPI_CTAR_PBR(0) | SPI_CTAR_BR(6) |          /* -> 374912Hz */
+        SPI_CTAR_PCSSCK(0) | SPI_CTAR_CSSCK(6) |
+        SPI_CTAR_PASC(0) | SPI_CTAR_ASC(6) |
+        SPI_CTAR_PDT(0) | SPI_CTAR_DT(6)
+    ),
+    (
+        SPI_CTAR_PBR(1) | SPI_CTAR_BR(4) |          /* -> 999765Hz */
+        SPI_CTAR_PCSSCK(1) | SPI_CTAR_CSSCK(3) |
+        SPI_CTAR_PASC(1) | SPI_CTAR_ASC(3) |
+        SPI_CTAR_PDT(1) | SPI_CTAR_DT(3)
+    ),
+    (
+        SPI_CTAR_PBR(2) | SPI_CTAR_BR(0) |          /* -> 4798873Hz */
+        SPI_CTAR_PCSSCK(2) | SPI_CTAR_CSSCK(0) |
+        SPI_CTAR_PASC(2) | SPI_CTAR_ASC(0) |
+        SPI_CTAR_PDT(2) | SPI_CTAR_DT(0)
+    ),
+    (
+        SPI_CTAR_PBR(1) | SPI_CTAR_BR(0) |          /* -> 7998122Hz */
+        SPI_CTAR_PCSSCK(1) | SPI_CTAR_CSSCK(0) |
+        SPI_CTAR_PASC(1) | SPI_CTAR_ASC(0) |
+        SPI_CTAR_PDT(1) | SPI_CTAR_DT(0)
+    )
+};
 
-#define MULLE_PASTE_PARTS(left, index, right) MULLE_PASTE_PARTS2(left, index, right)
-#define MULLE_PASTE_PARTS2(left, index, right) left##index##right
+static const spi_conf_t spi_config[] = {
+    {
+        .dev      = SPI0,
+        .pin_miso = GPIO_PIN(PORT_D, 3),
+        .pin_mosi = GPIO_PIN(PORT_D, 2),
+        .pin_clk  = GPIO_PIN(PORT_D, 1),
+        .pin_cs   = {
+            GPIO_PIN(PORT_D, 0),
+            GPIO_PIN(PORT_D, 4),
+            GPIO_PIN(PORT_D, 5),
+            GPIO_PIN(PORT_D, 6),
+            GPIO_UNDEF
+        },
+        .pcr      = GPIO_AF_2,
+        .simmask  = SIM_SCGC6_SPI0_MASK
+    },
+    {
+        .dev      = SPI1,
+        .pin_miso = GPIO_PIN(PORT_E, 3),
+        .pin_mosi = GPIO_PIN(PORT_E, 1),
+        .pin_clk  = GPIO_PIN(PORT_E, 2),
+        .pin_cs   = {
+            GPIO_PIN(PORT_E, 4),
+            GPIO_UNDEF,
+            GPIO_UNDEF,
+            GPIO_UNDEF,
+            GPIO_UNDEF
+        },
+        .pcr      = GPIO_AF_2,
+        .simmask  = SIM_SCGC6_SPI1_MASK
+    }
+};
 
-/* SPI 0 device config */
-/* SPI_0 (in RIOT) is mapped to SPI0, CTAS=0 in hardware */
-#define SPI_0_INDEX             0
-#define SPI_0_CTAS              0
-#define SPI_0_DEV               MULLE_PASTE_PARTS(SPI, SPI_0_INDEX, )
-#define SPI_0_CLKEN()           (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI0_SHIFT) = 1)
-#define SPI_0_CLKDIS()          (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI0_SHIFT) = 0)
-#define SPI_0_IRQ               MULLE_PASTE_PARTS(SPI, SPI_0_INDEX, _IRQn)
-#define SPI_0_IRQ_HANDLER       MULLE_PASTE_PARTS(isr_spi, SPI_0_INDEX, )
-#define SPI_0_IRQ_PRIO          CPU_DEFAULT_IRQ_PRIO
-#define SPI_0_FREQ              SystemBusClock
-/* SPI 0 pin configuration */
-#define SPI_0_SCK_PORT          PORTD
-#define SPI_0_SCK_PIN           1
-#define SPI_0_SCK_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_0_SCK_AF            2
-#define SPI_0_SIN_PORT          PORTD
-#define SPI_0_SIN_PIN           3
-#define SPI_0_SIN_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_0_SIN_AF            2
-#define SPI_0_SOUT_PORT         PORTD
-#define SPI_0_SOUT_PIN          2
-#define SPI_0_SOUT_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_0_SOUT_AF  2
-#define SPI_0_PCS0_PORT         PORTD
-#define SPI_0_PCS0_PIN          0
-#define SPI_0_PCS0_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_0_PCS0_AF           2
-/* SPI chip select polarity */
-#define SPI_0_PCS0_ACTIVE_LOW   1
-#define SPI_0_PCS1_ACTIVE_LOW   1
-#define SPI_0_PCS2_ACTIVE_LOW   1
-#define SPI_0_PCS3_ACTIVE_LOW   1
-
-/* SPI 1 device config */
-/* SPI_1 (in RIOT) is mapped to SPI1, CTAS=0 in hardware */
-#define SPI_1_INDEX             1
-#define SPI_1_CTAS              0
-#define SPI_1_DEV               MULLE_PASTE_PARTS(SPI, SPI_1_INDEX, )
-#define SPI_1_CLKEN()           (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI1_SHIFT) = 1)
-#define SPI_1_CLKDIS()          (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI1_SHIFT) = 0)
-#define SPI_1_IRQ               MULLE_PASTE_PARTS(SPI, SPI_1_INDEX, _IRQn)
-#define SPI_1_IRQ_HANDLER       MULLE_PASTE_PARTS(isr_spi, SPI_1_INDEX, )
-#define SPI_1_IRQ_PRIO          CPU_DEFAULT_IRQ_PRIO
-#define SPI_1_FREQ              SystemBusClock
-/* SPI 0 pin configuration */
-#define SPI_1_SCK_PORT          PORTE
-#define SPI_1_SCK_PIN           2
-#define SPI_1_SCK_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTE_SHIFT) = 1)
-#define SPI_1_SCK_AF            2
-#define SPI_1_SIN_PORT          PORTE
-#define SPI_1_SIN_PIN           3
-#define SPI_1_SIN_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTE_SHIFT) = 1)
-#define SPI_1_SIN_AF            2
-#define SPI_1_SOUT_PORT         PORTE
-#define SPI_1_SOUT_PIN          1
-#define SPI_1_SOUT_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTE_SHIFT) = 1)
-#define SPI_1_SOUT_AF  2
-#define SPI_1_PCS0_PORT         PORTE
-#define SPI_1_PCS0_PIN          4
-#define SPI_1_PCS0_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTE_SHIFT) = 1)
-#define SPI_1_PCS0_AF           2
-/* SPI chip select polarity */
-#define SPI_1_PCS0_ACTIVE_LOW   1
-#define SPI_1_PCS1_ACTIVE_LOW   1
-#define SPI_1_PCS2_ACTIVE_LOW   1
-#define SPI_1_PCS3_ACTIVE_LOW   1
-
-/* SPI 2 device config */
-/* SPI_2 (in RIOT) is mapped to SPI0, CTAS=1 in hardware */
-#define SPI_2_INDEX             0
-#define SPI_2_CTAS              1
-#define SPI_2_DEV               MULLE_PASTE_PARTS(SPI, SPI_2_INDEX, )
-#define SPI_2_CLKEN()           (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI0_SHIFT) = 1)
-#define SPI_2_CLKDIS()          (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_SPI0_SHIFT) = 0)
-#define SPI_2_IRQ               MULLE_PASTE_PARTS(SPI, SPI_2_INDEX, _IRQn)
-/* #define SPI_2_IRQ_HANDLER       MULLE_PASTE_PARTS(isr_spi, SPI_2_INDEX, ) */
-#define SPI_2_IRQ_PRIO          CPU_DEFAULT_IRQ_PRIO
-#define SPI_2_FREQ              SystemBusClock
-/* SPI 2 pin configuration, must be the same as the other RIOT device using this
- * hardware module */
-#define SPI_2_SCK_PORT          PORTD
-#define SPI_2_SCK_PIN           1
-#define SPI_2_SCK_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_2_SCK_AF            2
-#define SPI_2_SIN_PORT          PORTD
-#define SPI_2_SIN_PIN           3
-#define SPI_2_SIN_PORT_CLKEN()  (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_2_SIN_AF            2
-#define SPI_2_SOUT_PORT         PORTD
-#define SPI_2_SOUT_PIN          2
-#define SPI_2_SOUT_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_2_SOUT_AF  2
-#define SPI_2_PCS0_PORT         PORTD
-#define SPI_2_PCS0_PIN          0
-#define SPI_2_PCS0_PORT_CLKEN() (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTD_SHIFT) = 1)
-#define SPI_2_PCS0_AF           2
-/* SPI chip select polarity */
-#define SPI_2_PCS0_ACTIVE_LOW   1
-#define SPI_2_PCS1_ACTIVE_LOW   1
-#define SPI_2_PCS2_ACTIVE_LOW   1
-#define SPI_2_PCS3_ACTIVE_LOW   1
-
-/**
- * @name SPI delay timing configuration
- * @{ */
-/* These values are necessary for communicating with the AT86RF212B when running
- * the MCU core at high clock frequencies. */
-/* NB: The given values are the reciprocals of the time, in order to compute the
- * scalers using only integer math. */
-#define SPI_0_TCSC_FREQ (5555555) /* It looks silly, but this is correct. 1/180e-9 */
-#define SPI_0_TASC_FREQ (5454545) /* It looks silly, but this is correct. 1/183e-9 */
-#define SPI_0_TDT_FREQ  (4000000) /* 1/250e-9 */
-
-/* SPI_1 timings */
-#define SPI_1_TCSC_FREQ (0)
-#define SPI_1_TASC_FREQ (0)
-#define SPI_1_TDT_FREQ  (0)
-
-/* SPI_2 timings */
-#define SPI_2_TCSC_FREQ (0)
-#define SPI_2_TASC_FREQ (0)
-#define SPI_2_TDT_FREQ  (0)
-
+#define SPI_NUMOF           ARRAY_SIZE(spi_config)
 /** @} */
-
-/** @} */
-
 
 /**
  * @name I2C configuration
  * @{
  */
-#define I2C_NUMOF               (1U)
-#define I2C_CLK                 SystemBusClock
-#define I2C_0_EN                1
-#define I2C_1_EN                0
-#define I2C_IRQ_PRIO            CPU_DEFAULT_IRQ_PRIO
-/**
- * @name I2C baud rate configuration
- * @{
- */
-/* Low (10 kHz): MUL = 4, SCL divider = 2560, total: 10240 */
-#define KINETIS_I2C_F_ICR_LOW        (0x3D)
-#define KINETIS_I2C_F_MULT_LOW       (2)
-/* Normal (100 kHz): MUL = 2, SCL divider = 240, total: 480 */
-#define KINETIS_I2C_F_ICR_NORMAL     (0x1F)
-#define KINETIS_I2C_F_MULT_NORMAL    (1)
-/* Fast (400 kHz): MUL = 1, SCL divider = 128, total: 128 */
-#define KINETIS_I2C_F_ICR_FAST       (0x17)
-#define KINETIS_I2C_F_MULT_FAST      (0)
-/* Fast plus (1000 kHz): MUL = 1, SCL divider = 48, total: 48 */
-#define KINETIS_I2C_F_ICR_FAST_PLUS  (0x10)
-#define KINETIS_I2C_F_MULT_FAST_PLUS (0)
-/** @} */
-
-/* I2C 0 device configuration */
-#define I2C_0_DEV               I2C0
-#define I2C_0_CLKEN()           (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_I2C0_SHIFT) = 1)
-#define I2C_0_CLKDIS()          (BITBAND_REG32(SIM->SCGC4, SIM_SCGC4_I2C0_SHIFT) = 0)
-#define I2C_0_IRQ               I2C0_IRQn
-#define I2C_0_IRQ_HANDLER       isr_i2c0
-/* I2C 0 pin configuration */
-#define I2C_0_PORT              PORTB
-#define I2C_0_PORT_CLKEN()      (BITBAND_REG32(SIM->SCGC5, SIM_SCGC5_PORTB_SHIFT) = 1)
-#define I2C_0_PIN_AF            2
-#define I2C_0_SDA_PIN           1
-#define I2C_0_SCL_PIN           2
-#define I2C_0_PORT_CFG          (PORT_PCR_MUX(I2C_0_PIN_AF) | PORT_PCR_ODE_MASK)
-/** @} */
-
-
-/**
- * @name GPIO configuration
- * @{
- */
-#define GPIO_IRQ_PRIO       CPU_DEFAULT_IRQ_PRIO
-/** @} */
-
-
-/**
- * @name RTC configuration
- * @{
- */
-/* RIOT RTC implementation uses RTT for underlying timekeeper */
-#define RTC_NUMOF           (1U)
-/** @} */
-
-/**
- * @name RTT configuration
- * @{
- */
-#define RTT_NUMOF           (1U)
-#define RTT_IRQ_PRIO        CPU_DEFAULT_IRQ_PRIO
-#define RTT_IRQ             RTC_IRQn
-#define RTT_ISR             isr_rtc_alarm
-#define RTT_DEV             RTC
-#define RTT_UNLOCK()        (BITBAND_REG32(SIM->SCGC6, SIM_SCGC6_RTC_SHIFT) = 1)
-#define RTT_MAX_VALUE       (0xffffffff)
-#define RTT_FREQUENCY       (1)             /* in Hz */
-
-/**
- * RTC module crystal load capacitance configuration bits.
- */
-/* The crystal on the Mulle is designed for 12.5 pF load capacitance. According
- * to the data sheet, the K60 will have a 5 pF parasitic capacitance on the
- * XTAL32/EXTAL32 connection. The board traces might give some minor parasitic
- * capacitance as well. */
-/* enable 6pF load capacitance, might need adjusting.. */
-#define RTT_LOAD_CAP_BITS   (RTC_CR_SC4P_MASK | RTC_CR_SC2P_MASK | RTC_CR_SC1P_MASK)
-/** @} */
-
-
-/**
- * @name Random Number Generator configuration
- * @{
- */
-#define RANDOM_NUMOF            (1U)
-#define RANDOM_CLKEN()          (BITBAND_REG32(SIM->SCGC3, SIM_SCGC3_RNGA_SHIFT) = 1)
-#define RANDOM_CLKDIS()         (BITBAND_REG32(SIM->SCGC3, SIM_SCGC3_RNGA_SHIFT) = 0)
+static const i2c_conf_t i2c_config[] = {
+    {
+        .i2c = I2C0,
+        .scl_pin = GPIO_PIN(PORT_B,  2),
+        .sda_pin = GPIO_PIN(PORT_B,  1),
+        .freq = CLOCK_BUSCLOCK,
+        .speed = I2C_SPEED_FAST,
+        .irqn = I2C0_IRQn,
+        .scl_pcr = (PORT_PCR_MUX(2) | PORT_PCR_ODE_MASK),
+        .sda_pcr = (PORT_PCR_MUX(2) | PORT_PCR_ODE_MASK),
+    },
+};
+#define I2C_NUMOF           ARRAY_SIZE(i2c_config)
+#define I2C_0_ISR           (isr_i2c0)
+#define I2C_1_ISR           (isr_i2c1)
 /** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* MULLE_PERIPH_CONF_H_ */
+#endif /* PERIPH_CONF_H */
 /** @} */

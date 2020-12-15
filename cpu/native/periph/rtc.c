@@ -7,16 +7,19 @@
  */
 
 /**
- * Native CPU periph/rtc.h implementation
+ * @ingroup     cpu_native
+ * @ingroup     drivers_periph_rtc
+ * @{
+ *
+ * @file
+ * @brief Native CPU periph/rtc.h implementation
  *
  * The implementation uses POSIX system calls to emulate a real-time
  * clock based on the system clock.
  *
  * @author Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
  *
- * @ingroup _native_cpu
- * @defgroup _native_rtc
- * @file
+ * @}
  */
 
 #include <time.h>
@@ -26,10 +29,11 @@
 
 #include "periph/rtc.h"
 #include "cpu.h"
+#include "xtimer.h"
 
 #include "native_internal.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 static int _native_rtc_initialized = 0;
@@ -37,6 +41,8 @@ static int _native_rtc_powered = 0;
 static struct tm _native_rtc_alarm;
 static rtc_alarm_cb_t _native_rtc_alarm_callback;
 static void *_native_rtc_alarm_argument;
+
+static xtimer_t _timer;
 
 void rtc_init(void)
 {
@@ -123,7 +129,6 @@ int rtc_get_time(struct tm *ttime)
     return 0;
 }
 
-/* TODO: implement alarm scheduling */
 int rtc_set_alarm(struct tm *time, rtc_alarm_cb_t cb, void *arg)
 {
     (void) time;
@@ -139,11 +144,16 @@ int rtc_set_alarm(struct tm *time, rtc_alarm_cb_t cb, void *arg)
         return -1;
     }
 
-    memcpy(&_native_rtc_alarm, time, sizeof(_native_rtc_alarm));
+    struct tm now;
+    rtc_get_time(&now);
 
-    warnx("rtc_set_alarm: not implemented");
+    _native_rtc_alarm = *time;
 
-    return -1;
+    _timer.callback = cb;
+    _timer.arg      = arg;
+    xtimer_set64(&_timer, (mktime(time) - mktime(&now)) * US_PER_SEC);
+
+    return 0;
 }
 
 int rtc_get_alarm(struct tm *time)
@@ -159,13 +169,11 @@ int rtc_get_alarm(struct tm *time)
         return -1;
     }
 
-    memcpy(time, &_native_rtc_alarm, sizeof(_native_rtc_alarm));
+    *time = _native_rtc_alarm;
 
     return 0;
 }
 
-/* TODO: implement alarm unscheduling once rtc_set_alarm is
- * implemented */
 void rtc_clear_alarm(void)
 {
     DEBUG("rtc_clear_alarm()\n");
@@ -177,5 +185,6 @@ void rtc_clear_alarm(void)
         warnx("rtc_clear_alarm: not powered on");
     }
 
+    xtimer_remove(&_timer);
     memset(&_native_rtc_alarm, 0, sizeof(_native_rtc_alarm));
 }

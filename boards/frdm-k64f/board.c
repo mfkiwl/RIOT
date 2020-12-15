@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     board_frdm-k64f
+ * @ingroup     boards_frdm-k64f
  * @{
  *
  * @file
@@ -20,34 +20,22 @@
  */
 
 #include "board.h"
-
-static void leds_init(void);
+#include "periph/gpio.h"
 
 void board_init(void)
 {
-    leds_init();
-    cpu_init();
-}
+    /* RMII RXCLK pin configuration */
+    SIM->SCGC5 |= SIM_SCGC5_PORTA_MASK;
+    PORTA->PCR[18] &= ~(PORT_PCR_ISF_MASK | PORT_PCR_MUX(0x07));
 
-/**
- * @brief Initialize the boards on-board RGB-LED
- *
- */
-static void leds_init(void)
-{
-    /* enable clock */
-    LED_B_PORT_CLKEN();
-    LED_G_PORT_CLKEN();
-    LED_R_PORT_CLKEN();
-    /* configure pins as gpio */
-    LED_B_PORT->PCR[LED_B_PIN] = PORT_PCR_MUX(1);
-    LED_G_PORT->PCR[LED_G_PIN] = PORT_PCR_MUX(1);
-    LED_R_PORT->PCR[LED_R_PIN] = PORT_PCR_MUX(1);
-    LED_B_GPIO->PDDR |= (1 << LED_B_PIN);
-    LED_G_GPIO->PDDR |= (1 << LED_G_PIN);
-    LED_R_GPIO->PDDR |= (1 << LED_R_PIN);
-    /* turn all LEDs off */
-    LED_B_GPIO->PSOR |= (1 << LED_B_PIN);
-    LED_G_GPIO->PSOR |= (1 << LED_G_PIN);
-    LED_R_GPIO->PSOR |= (1 << LED_R_PIN);
+    /* initialize the CPU core */
+    cpu_init();
+
+    /* initialize and turn off the on-board RGB-LED */
+    gpio_init(LED0_PIN, GPIO_OUT);
+    gpio_init(LED1_PIN, GPIO_OUT);
+    gpio_init(LED2_PIN, GPIO_OUT);
+    gpio_set(LED0_PIN);
+    gpio_set(LED1_PIN);
+    gpio_set(LED2_PIN);
 }

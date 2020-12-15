@@ -8,9 +8,7 @@
  */
 
 /**
- * @defgroup    boards_mbed_lpc1768 mbed LPC1768 development kit
- * @ingroup     boards
- * @brief       Support for the mbed LPC1762 board
+ * @ingroup     boards_mbed_lpc1768
  * @{
  *
  * @file
@@ -20,71 +18,42 @@
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
-#include <stdint.h>
-
-#include "bitarithm.h"
 #include "cpu.h"
+#include "periph_conf.h"
+#include "periph/gpio.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @brief The nominal CPU core clock in this board
- */
-#define F_CPU               (96000000)
-
-/**
- * @name Assign the UART interface to be used for stdio
+ * @name    LED pin definitions and handlers
  * @{
  */
-#define STDIO               UART_0
-#define STDIO_BAUDRATE      (115200U)
-#define STDIO_RX_BUFSIZE    (64U)
+#define LED0_PIN            GPIO_PIN(1, 18)
+#define LED1_PIN            GPIO_PIN(1, 20)
+#define LED2_PIN            GPIO_PIN(1, 21)
+#define LED3_PIN            GPIO_PIN(1, 23)
+
+#define LED0_ON             gpio_set(LED0_PIN)
+#define LED0_OFF            gpio_clear(LED0_PIN)
+#define LED0_TOGGLE         gpio_toggle(LED0_PIN)
+#define LED1_ON             gpio_set(LED1_PIN)
+#define LED1_OFF            gpio_clear(LED1_PIN)
+#define LED1_TOGGLE         gpio_toggle(LED1_PIN)
+#define LED2_ON             gpio_set(LED2_PIN)
+#define LED2_OFF            gpio_clear(LED2_PIN)
+#define LED2_TOGGLE         gpio_toggle(LED2_PIN)
+#define LED3_ON             gpio_set(LED3_PIN)
+#define LED3_OFF            gpio_clear(LED3_PIN)
+#define LED3_TOGGLE         gpio_toggle(LED3_PIN)
 /** @} */
 
 /**
- * @name LED pin definitions
- * @{
- */
-#define LED_PORT            LPC_GPIO1
-#define LED1_PIN            BIT18
-#define LED2_PIN            BIT20
-#define LED3_PIN            BIT21
-#define LED4_PIN            BIT23
-/** @} */
-
-/**
- * @name Macros for controlling the on-board LEDs.
- * @{
- */
-#define LED1_ON              (LED_PORT->FIOSET = LED1_PIN)
-#define LED1_OFF             (LED_PORT->FIOCLR = LED1_PIN)
-#define LED1_TOGGLE          (LED_PORT->FIOPIN ^= LED1_PIN)
-#define LED2_ON              (LED_PORT->FIOSET = LED2_PIN)
-#define LED2_OFF             (LED_PORT->FIOCLR = LED2_PIN)
-#define LED2_TOGGLE          (LED_PORT->FIOPIN ^= LED2_PIN)
-#define LED3_ON              (LED_PORT->FIOSET = LED3_PIN)
-#define LED3_OFF             (LED_PORT->FIOCLR = LED3_PIN)
-#define LED3_TOGGLE          (LED_PORT->FIOPIN ^= LED3_PIN)
-#define LED4_ON              (LED_PORT->FIOSET = LED4_PIN)
-#define LED4_OFF             (LED_PORT->FIOCLR = LED4_PIN)
-#define LED4_TOGGLE          (LED_PORT->FIOPIN ^= LED4_PIN)
-
-/* for compatibility to other boards */
-#define LED_GREEN_ON        LED1_ON
-#define LED_GREEN_OFF       LED1_OFF
-#define LED_GREEN_TOGGLE    LED1_TOGGLE
-#define LED_RED_ON          LED4_ON
-#define LED_RED_OFF         LED4_OFF
-#define LED_RED_TOGGLE      LED4_TOGGLE
-/** @} */
-
-/**
- * @brief Initialize board specific hardware, include clocks, LEDs and stdio
+ * @brief   Initialize board specific hardware, include clocks, LEDs and stdio
  */
 void board_init(void);
 
@@ -92,5 +61,5 @@ void board_init(void);
 }
 #endif
 
-#endif /* BOARD_H_ */
+#endif /* BOARD_H */
 /** @} */

@@ -17,9 +17,19 @@
  * @author      Peter Kietzmann <peter.kietzmann@haw-hamburg.de>
  * @author      Zakaria Kasmi <zkasmi@inf.fu-berlin.de>
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
+ * @author      Kevin Weiss <kevin.weiss@haw-hamburg.de>
  *
  * @}
  */
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+
+#include "shell.h"
+#include "xtimer.h"
+#include "timex.h"
+#include "srf02.h"
 
 #ifndef TEST_SRF02_I2C
 #error "TEST_SRF02_I2C not defined"
@@ -28,26 +38,35 @@
 #error "TEST_MODE not defined"
 #endif
 
-#include <stdio.h>
+#define SAMPLE_PERIOD       (100LU * US_PER_MS) /* 100 ms */
 
-#include "xtimer.h"
-#include "srf02.h"
-#include "periph/i2c.h"
+static srf02_t dev;
 
-#define SAMPLE_PERIOD       (1000 * 1000U)
+static void sample(void)
+{
+    uint16_t distance = srf02_get_distance(&dev, TEST_MODE);
+    if (distance != 0xFFFF) {
+        printf("distance = %3i cm\n", distance);
+    }
+    else {
+        printf("Sample failed!\n");
+    }
+}
 
-int main(void)
+static int cmd_init(int argc, char **argv)
 {
     int res;
-    srf02_t dev;
-    uint32_t wakeup = xtimer_now();
 
-    puts("\nSRF02 Ultrasonic Range Sensor Test\n");
-    puts("This test will sample the sensor once per second and display the\n"
-         "result\n");
+    if (argc < 2) {
+        printf("usage: %s <addr (decimal)>\n", argv[0]);
+        return 1;
+    }
 
-    printf("Initializing SRF02 sensor at I2C_%i... ", TEST_SRF02_I2C);
-    res = srf02_init(&dev, TEST_SRF02_I2C, SRF02_DEFAULT_ADDR);
+    uint8_t addr = atoi(argv[1]);
+
+    printf("Initializing SRF02 sensor at I2C_DEV(%i), address is %i\n... ",
+           TEST_SRF02_I2C, (int)addr);
+    res = srf02_init(&dev, TEST_SRF02_I2C, addr);
     if (res < 0) {
         puts("[Failed]");
         return 1;
@@ -55,10 +74,72 @@ int main(void)
     else {
         puts("[Ok]\n");
     }
+    return 0;
+}
+
+static int cmd_sample(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+    xtimer_ticks32_t wakeup = xtimer_now();
 
     while(1) {
-        xtimer_usleep_until(&wakeup, SAMPLE_PERIOD);
-        uint16_t distance = srf02_get_distance(&dev, TEST_MODE);
-        printf("distance = %i cm\n", distance);
+        sample();
+        xtimer_periodic_wakeup(&wakeup, SAMPLE_PERIOD);
     }
+
+    return 0;
+}
+
+static int cmd_shoot(int argc, char **argv)
+{
+    (void)argc;
+    (void)argv;
+
+    sample();
+    return 0;
+}
+
+static int cmd_set_addr(int argc, char **argv)
+{
+    uint8_t new_addr;
+
+    if (argc < 2) {
+        printf("usage: %s <new_addr (decimal)>\n", argv[0]);
+        return 1;
+    }
+
+    new_addr = atoi(argv[1]);
+    if (srf02_set_addr(&dev, new_addr) == 0) {
+        printf("Set address to %i\n", (int)new_addr);
+        return 0;
+    }
+
+    printf("Set address failed\n");
+    return 1;
+}
+
+static const shell_command_t shell_commands[] = {
+    { "init", "initialize a device", cmd_init },
+    { "sample", "start sampling", cmd_sample },
+    { "shoot", "get a single sample", cmd_shoot },
+    { "addr", "reprogram the devices address", cmd_set_addr },
+    { NULL, NULL, NULL }
+};
+
+int main(void)
+{
+    puts("\nSRF02 Ultrasonic Range Sensor Test\n");
+    puts("Use the following flow to test your device/setup. First you need to\n"
+         "initialize your device (e.g. 'init 224'). Next you can sample your \n"
+         "device continuously ('sample'), or get one value ('shoot').\n\n"
+         "This application let's you also reprogram your device's I2C"
+         "address:\n"
+         " 1. initialize your device -> e.g. 'init 224'\n"
+         " 2. specify the new address -> e.g.'addr 228'\n"
+         "The device will be programmed with the new address and it is\n"
+         "re-initialized with the new address, so you can use it right away\n");
+
+    char line_buf[SHELL_DEFAULT_BUFSIZE];
+    shell_run(shell_commands, line_buf, SHELL_DEFAULT_BUFSIZE);
 }

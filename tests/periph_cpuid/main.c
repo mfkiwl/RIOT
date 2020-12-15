@@ -27,17 +27,19 @@
 
 int main(void)
 {
-    uint8_t id[CPUID_ID_LEN];
+    uint8_t id[CPUID_LEN];
 
     puts("Test for the CPUID driver");
     puts("This test is reading out the CPUID of the platforms CPU\n");
+
+    printf("CPUID_LEN: %u\n", CPUID_LEN);
 
     /* read the CPUID */
     cpuid_get(id);
 
     /* print the CPUID */
     printf("CPUID:");
-    for (unsigned int i = 0; i < CPUID_ID_LEN; i++) {
+    for (unsigned int i = 0; i < CPUID_LEN; i++) {
         printf(" 0x%02x", id[i]);
     }
     printf("\n");

@@ -1,29 +1,9 @@
-PKG_NAME = tlsf
-PKG_VERSION = 3.0
-PKG_FILE = tlsf-$(PKG_VERSION).zip
-PKG_URL = http://tlsf.baisoku.org/$(PKG_FILE)
+PKG_NAME=tlsf
+PKG_URL=https://github.com/mattconte/tlsf
+PKG_VERSION=a1f743ffac0305408b39e791e0ffb45f6d9bc777
+PKG_LICENSE=BSD
 
-.PHONY: all clean distclean
+include $(RIOTBASE)/pkg/pkg.mk
 
-all: $(BINDIR)$(PKG_NAME).a
-
-$(BINDIR)$(PKG_NAME).a: $(BINDIR)$(PKG_NAME)-src/Makefile
-	$(AD)make -C $(<D)
-
-$(BINDIR)$(PKG_NAME)-src/Makefile: $(CURDIR)/$(PKG_FILE) $(CURDIR)/patch.txt
-	@rm -rf $(@D)
-	@mkdir -p $(@D)
-	$(AD)cd $(@D) && $(UNZIP_HERE) $(CURDIR)/$(PKG_FILE)
-	$(AD)cd $(@D) && patch --binary -p0 -N -i $(CURDIR)/patch.txt
-
-$(CURDIR)/$(PKG_FILE):
-	$(AD)$(DOWNLOAD_TO_FILE) $@ $(PKG_URL)
-
-clean::
-	rm -rf $(BINDIR)$(PKG_NAME)-src/
-
-distclean:: clean
-	rm -f $(CURDIR)/$(PKG_FILE)
-
-Makefile.include:
-	@true
+all:
+	"$(MAKE)" -C $(PKG_SOURCE_DIR) -f $(RIOTBASE)/Makefile.base

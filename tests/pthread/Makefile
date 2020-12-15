@@ -1,10 +1,11 @@
-APPLICATION = pthread
 include ../Makefile.tests_common
 
-BOARD_BLACKLIST := arduino-mega2560
-# arduino-mega2560: unknown type name: clockid_t
-
-USEMODULE += posix
+USEMODULE += posix_headers
 USEMODULE += pthread
+
+# The test compiles, but these boards have too little RAM for
+# dynamic allocation of thread stacks
+BOARD_BLACKLIST := arduino-nano arduino-duemilanove \
+                   arduino-uno nucleo-f031k6 stm32f030f4-demo
 
 include $(RIOTBASE)/Makefile.include

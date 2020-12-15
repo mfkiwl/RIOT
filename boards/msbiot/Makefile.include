@@ -1,16 +1,13 @@
-# define the cpu used by the msb-iot board
-export CPU = stm32f4
-export CPU_MODEL = stm32f415rg
+# we use shared STM32 configuration snippets
+INCLUDES += -I$(RIOTBOARD)/common/stm32/include
 
-#define the default port depending on the host OS
-PORT_LINUX ?= /dev/ttyUSB0
-PORT_DARWIN ?= $(shell ls -1 /dev/tty.SLAB_USBtoUART* | head -n 1)
+PROGRAMMER ?= openocd
 
-# setup serial terminal
-include $(RIOTBOARD)/Makefile.include.serial
+DEBUG_ADAPTER ?= stlink
+ifeq (openocd,$(PROGRAMMER))
+  STLINK_VERSION ?= 2
+  PORT_LINUX ?= /dev/ttyUSB0
+endif
 
-# this board uses openocd
-include $(RIOTBOARD)/Makefile.include.openocd
-
-# include cortex defaults
-include $(RIOTBOARD)/Makefile.include.cortexm_common
+# Setup of programmer and serial is shared between STM32 based boards
+include $(RIOTMAKE)/boards/stm32.inc.mk

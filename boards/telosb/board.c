@@ -9,7 +9,6 @@
 
 #include "cpu.h"
 #include "board.h"
-#include "uart_stdio.h"
 
 void uart_init(void);
 
@@ -67,18 +66,18 @@ void msp430_init_dco(void)
     BCSCTL1 |= DIVA1 + DIVA0;             /* ACLK = LFXT1CLK/8 */
 
     for (i = 0xFFFF; i > 0; i--) {        /* Delay for XTAL to settle */
-        asm("nop");
+        __asm__("nop");
     }
 
     CCTL2 = CCIS0 + CM0 + CAP;            /* Define CCR2, CAP, ACLK */
-    TACTL = TASSEL1 + TACLR + MC1;        /* SMCLK, continous mode */
+    TACTL = TASSEL1 + TACLR + MC1;        /* SMCLK, continuous mode */
 
     while (1) {
         unsigned int compare;
 
-        while ((CCTL2 & CCIFG) != CCIFG);   /* Wait until capture occured!*/
+        while ((CCTL2 & CCIFG) != CCIFG);   /* Wait until capture occurred!*/
 
-        CCTL2 &= ~CCIFG;                    /* Capture occured, clear flag */
+        CCTL2 &= ~CCIFG;                    /* Capture occurred, clear flag */
         compare = CCR2;                     /* Get current captured SMCLK */
         compare = compare - oldcapture;     /* SMCLK difference */
         oldcapture = CCR2;                  /* Save current captured SMCLK */
@@ -121,9 +120,6 @@ void board_init(void)
 
     telosb_ports_init();
     msp430_init_dco();
-
-    /* initialize the STDIO */
-    uart_stdio_init();
 
     /* enable interrupts */
     __bis_SR_register(GIE);

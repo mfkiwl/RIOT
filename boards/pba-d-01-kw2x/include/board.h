@@ -8,19 +8,18 @@
  */
 
 /**
- * @defgroup    board_phywave_eval phyWAVE-KW22 Board
- * @ingroup     boards
- * @brief       Board specific implementations for the phyWAVE evaluation board
+ * @ingroup     boards_pba-d-01-kw2x
  * @{
  *
  * @file
  * @brief       Board specific definitions for the phyWAVE evaluation board
  *
  * @author      Johann Fischer <j.fischer@phytec.de>
+ * @author      Sebastian Meiling <s@mlng.net>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
 #include "cpu.h"
 #include "periph_conf.h"
@@ -31,69 +30,67 @@ extern "C"
 #endif
 
 /**
- * Define the nominal CPU core clock in this board
- */
-#define F_CPU               CLOCK_CORECLOCK
-
-/**
- * @name Define UART device and baudrate for stdio
+ * @name    LED pin definitions and handlers
  * @{
  */
-#define STDIO               UART_0
-#define STDIO_RX_BUFSIZE    (64U)
-#define STDIO_BAUDRATE      (115200U)
+#define LED0_PIN            GPIO_PIN(PORT_D, 6)
+#define LED1_PIN            GPIO_PIN(PORT_D, 4)
+#define LED2_PIN            GPIO_PIN(PORT_A, 4)
+
+#define LED0_MASK           (1 << 6)
+#define LED1_MASK           (1 << 4)
+#define LED2_MASK           (1 << 4)
+
+#define LED0_ON            (GPIOD->PCOR = LED0_MASK)
+#define LED0_OFF           (GPIOD->PSOR = LED0_MASK)
+#define LED0_TOGGLE        (GPIOD->PTOR = LED0_MASK)
+
+#define LED1_ON            (GPIOD->PCOR = LED1_MASK)
+#define LED1_OFF           (GPIOD->PSOR = LED1_MASK)
+#define LED1_TOGGLE        (GPIOD->PTOR = LED1_MASK)
+
+#define LED2_ON            (GPIOA->PCOR = LED2_MASK)
+#define LED2_OFF           (GPIOA->PSOR = LED2_MASK)
+#define LED2_TOGGLE        (GPIOA->PTOR = LED2_MASK)
 /** @} */
 
 /**
- * @name LED pin definitions
+ * @name Macro for button S1/S2.
  * @{
  */
-#define LED_R_PORT_CLKEN()    (SIM->SCGC5 |= (SIM_SCGC5_PORTD_MASK)) /**< Clock Enable for PORTD*/
-#define LED_G_PORT_CLKEN()    (SIM->SCGC5 |= (SIM_SCGC5_PORTD_MASK)) /**< Clock Enable for PORTD*/
-#define LED_B_PORT_CLKEN()    (SIM->SCGC5 |= (SIM_SCGC5_PORTA_MASK)) /**< Clock Enable for PORTA*/
-#define LED_R_PORT            PORTD /**< PORT for Red LED*/
-#define LED_R_GPIO            GPIOD /**< GPIO-Device for Red LED*/
-#define LED_G_PORT            PORTD /**< PORT for Green LED*/
-#define LED_G_GPIO            GPIOD /**< GPIO-Device for Green LED*/
-#define LED_B_PORT            PORTA /**< PORT for Blue LED*/
-#define LED_B_GPIO            GPIOA /**< GPIO-Device for Blue LED*/
-#define LED_R_PIN             6     /**< Red LED connected to PINx*/
-#define LED_G_PIN             4     /**< Green LED connected to PINx*/
-#define LED_B_PIN             4     /**< Blue LED connected to PINx*/
+#define BTN0_PORT           PORTD
+#define BTN0_PIN            GPIO_PIN(PORT_D, 1)
+#define BTN0_MODE           GPIO_IN_PU
 /** @} */
 
 /**
- * @name Macros for controlling the on-board LEDs.
+ * @name Macro for capacitive sensor button.
  * @{
  */
-#define LED_B_ON            (LED_B_GPIO->PCOR = (1 << LED_B_PIN))
-#define LED_B_OFF           (LED_B_GPIO->PSOR = (1 << LED_B_PIN))
-#define LED_B_TOGGLE        (LED_B_GPIO->PTOR = (1 << LED_B_PIN))
-#define LED_G_ON            (LED_G_GPIO->PCOR = (1 << LED_G_PIN))
-#define LED_G_OFF           (LED_G_GPIO->PSOR = (1 << LED_G_PIN))
-#define LED_G_TOGGLE        (LED_G_GPIO->PTOR = (1 << LED_G_PIN))
-#define LED_R_ON            (LED_R_GPIO->PCOR = (1 << LED_R_PIN))
-#define LED_R_OFF           (LED_R_GPIO->PSOR = (1 << LED_R_PIN))
-#define LED_R_TOGGLE        (LED_R_GPIO->PTOR = (1 << LED_R_PIN))
-
-/* for compatability to other boards */
-#define LED_GREEN_ON        LED_G_ON
-#define LED_GREEN_OFF       LED_G_OFF
-#define LED_GREEN_TOGGLE    LED_G_TOGGLE
-#define LED_RED_ON          LED_R_ON
-#define LED_RED_OFF         LED_R_OFF
-#define LED_RED_TOGGLE      LED_R_TOGGLE
+#define BTN1_PORT           PORTC
+#define BTN1_PIN            GPIO_PIN(PORT_C, 6)
+#define BTN1_MODE           GPIO_IN
 /** @} */
 
 /**
-@name KW2XRF configuration
-@{
-*/
-#define KW2XRF_SPI        (SPI_1)
-#define KW2XRF_CS         (GPIO_PIN(KW2XDRF_PORT, KW2XDRF_PCS0_PIN))
-#define KW2XRF_INT        (GPIO_PIN(KW2XDRF_PORT, KW2XDRF_IRQ_PIN))
-#define KW2XRF_SPI_SPEED  (SPI_SPEED_10MHZ)
-#define KW2XRF_SHARED_SPI 0
+ * @name KW2XRF configuration
+ *
+ * {spi bus, cs pin, int pin, spi speed,}
+ * @{
+ */
+#define KW2XRF_PARAM_SPI           SPI_DEV(1)
+#define KW2XRF_PARAM_SPI_CLK       (SPI_CLK_10MHZ)
+#define KW2XRF_PARAM_CS            GPIO_PIN(KW2XDRF_PORT, KW2XDRF_PCS0_PIN)
+#define KW2XRF_PARAM_INT           GPIO_PIN(KW2XDRF_PORT, KW2XDRF_IRQ_PIN)
+#define KW2XRF_SHARED_SPI          (0)
+/** @}*/
+
+/**
+ * @name TMP006 configuration
+ *
+ * @{
+ */
+#define TMP00X_PARAM_ADDR          (0x41)
 /** @}*/
 
 /**
@@ -105,5 +102,5 @@ void board_init(void);
 }
 #endif
 
-#endif /* __BOARD_H */
+#endif /* BOARD_H */
 /** @} */

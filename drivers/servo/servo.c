@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     driver_servo
+ * @ingroup     drivers_servo
  * @{
  *
  * @file
@@ -22,17 +22,17 @@
 
 #include "servo.h"
 #include "periph/pwm.h"
-#include "timex.h" /* for SEC_IN_USEC */
+#include "timex.h" /* for US_PER_SEC */
 
-#define ENABLE_DEBUG    (0)
+#define ENABLE_DEBUG        0
 #include "debug.h"
 
 #ifndef SERVO_FREQUENCY
-#define SERVO_FREQUENCY       (100U)
+#define SERVO_FREQUENCY     (100U)
 #endif
 
 #ifndef SERVO_RESOLUTION
-#define SERVO_RESOLUTION      (SEC_IN_USEC / SERVO_FREQUENCY)
+#define SERVO_RESOLUTION    (US_PER_SEC / SERVO_FREQUENCY)
 #endif
 
 int servo_init(servo_t *dev, pwm_t pwm, int pwm_channel, unsigned int min, unsigned int max)
@@ -88,7 +88,7 @@ int servo_init(servo_t *dev, pwm_t pwm, int pwm_channel, unsigned int min, unsig
     return 0;
 }
 
-int servo_set(servo_t *dev, unsigned int pos)
+void servo_set(const servo_t *dev, unsigned int pos)
 {
     unsigned int raw_value;
     if (pos > dev->max) {
@@ -103,5 +103,5 @@ int servo_set(servo_t *dev, unsigned int pos)
 
     DEBUG("servo_set: pos %d -> raw %d\n", pos, raw_value);
 
-    return pwm_set(dev->device, dev->channel, raw_value);
+    pwm_set(dev->device, dev->channel, raw_value);
 }

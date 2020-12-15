@@ -7,11 +7,11 @@
  */
 
 /**
- * @ingroup     board_nrf6310
+ * @ingroup     boards_nrf6310
  * @{
  *
  * @file        board.c
- * @brief       Board specific implementations for the nRF51822 evaluation board pca10005
+ * @brief       Board specific implementations for the NRF6310 board
  *
  * @author      Christian Kühling <kuehling@zedat.fu-berlin.de>
  * @author      Timo Ziegler <timo.ziegler@fu-berlin.de>
@@ -25,8 +25,9 @@
 
 void board_init(void)
 {
-    /* setup led(s) for debugging */
-    NRF_GPIO->PIN_CNF[LED_RED_PIN] = GPIO_PIN_CNF_DIR_Output;
+    /* initialize and turn off on-board LEDs */
+    NRF_GPIO->DIRSET = (LED0_MASK | LED1_MASK | LED2_MASK);
+    NRF_GPIO->OUTSET = (LED0_MASK | LED1_MASK | LED2_MASK);
 
     /* initialize the CPU */
     cpu_init();

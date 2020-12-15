@@ -1,39 +1,22 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
-# Copyright (C) 2015 INRIA
+# Copyright (C) 2016 Kaspar Schleiser <kaspar@schleiser.de>
 #
 # This file is subject to the terms and conditions of the GNU Lesser
 # General Public License v2.1. See the file LICENSE in the top level
 # directory for more details.
 
-import os, signal, sys
-from pexpect import TIMEOUT, EOF
-if sys.version_info[0] == 2:
-    from pexpect import spawn
-else:
-    from pexpect import spawnu as spawn
+import sys
+from testrunner import run
 
-DEFAULT_TIMEOUT = 2
 
-def main():
-    p = None
+def testfunc(child):
+    child.expect("[START]")
+    for i in range(5):
+        child.expect("Message: 42")
+        child.expect("Timeout!")
+    child.expect("[SUCCESS]")
 
-    try:
-        p = spawn("make term", timeout=DEFAULT_TIMEOUT)
-        p.logfile = sys.stdout
-
-        for i in range(10):
-            p.expect("Message received: 44")
-            p.expect("Timeout")
-    except TIMEOUT as exc:
-        print(exc)
-        return 1
-    finally:
-        if p and not p.terminate():
-            print("SUCCESS")
-            os.killpg(p.pid, signal.SIGKILL)
-
-    return 0
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run(testfunc))

@@ -33,11 +33,14 @@ brackets):
  * IOTLAB_EXP_ID (taken from first experiment in running state)
  * IOTLAB_EXP_NAME (RIOT_EXP)
  * IOTLAB_PHY_NODES
+ * IOTLAB_PROFILE
  * IOTLAB_EXCLUDE_NODES
+ * IOTLAB_LOGGING
+ * IOTLAB_TMUX
 
 ### Format of a Resource ID
 Both variables `IOTLAB_PHY_NODES` and `IOTLAB_EXCLUDE_NODES` use the resource id
-string format as specified in the output of `experiment-cli submit --help`.
+string format as specified in the output of `iotlab-experiment submit --help`.
 An example would be: 1-3+7+10-13
 
 ### Targets
@@ -56,30 +59,34 @@ if `IOTLAB_EXP_ID` is not set.
 
 This schedules a new experiment on the FIT IoT-LAB and waits until it enters
 "Running" state. It will request `IOTLAB_NODES` nodes of type `IOTLAB_TYPE`
-for `IOTLAB_DURATION` minutes at site `IOTLAB_SITE`. With `IOTLAB_PHY_NODES`
-it is possible to choose specific nodes for this experiment by using the resource id
-string format as described above.
+for `IOTLAB_DURATION` minutes at site `IOTLAB_SITE` using `IOTLAB_PROFILE`
+(if provided). With `IOTLAB_PHY_NODES` it is possible to choose specific nodes
+for this experiment by using the resource id string format as described above.
 Note that the usage of `IOTLAB_PHY_NODES` ignores `IOTLAB_NODES`. It will also flash the
 binary of the current application to all registered nodes. The name of the
 experiment is set to "RIOT_EXP" or "RIOT_EXP_$(IOTLAB_EXP_NAME)"
 if `IOTLAB_EXP_NAME` is defined.
+If `IOTLAB_LOGGING` is set to `1`, then the output of all nodes will be logged on the server
+into a file called "RIOT_LOG-<EXPNAME>-<EXPID>".
 
 #### iotlab-flash
 
 This target updates the application on all registered nodes of the given
 experiment to the current version of the application.
 Certain nodes can be excluded by listing them in the `IOTLAB_EXCLUDE_NODES` variable
-using the resource id string format as described above. If you do not use the default site,
-then you must specify the site with `IOTLAB_SITE`.
+using the resource id string format as described above.
 
 #### iotlab-reset
 
 This target resets all registered nodes of the given experiment.
 Certain nodes can be excluded by listing them in the `IOTLAB_EXCLUDE_NODES` variable
-using the resource id string format as described above. If you do not use the default site,
-then you must specify the site with `IOTLAB_SITE`.
+using the resource id string format as described above.
 
 #### iotlab-term
 
 Uses ssh to login the user on the IoT-LAB server of the specified site and
 start the `serial_aggregator` to communication with all registered nodes.
+If `IOTLAB_LOGGING` is set to `1`, then closing the connection with `CTRL+C/D` will also quit
+the logging process. If you enabled TMUX with `IOTLAB_TMUX`, detach from the
+server-side tmux process with `CTRL+A-D` (or as defined in your server-side
+`.tmux.conf` file)

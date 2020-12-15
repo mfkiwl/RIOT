@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2015 Martine Lenders <mlenders@inf.fu-berlin.de>
+ * Copyright (C) 2015 Cenk Gündoğan <cnkgndgn@gmail.com>
+ * Copyright (C) 2018 Freie Universität Berlin
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -9,32 +10,56 @@
 /**
  * @defgroup    net_ipv6_ext_rh IPv6 routing header extension
  * @ingroup     net_ipv6_ext
- * @brief       Implementation of IPv6 routing header extension.
+ * @brief       Definitions for IPv6 routing header extension.
  * @{
  *
  * @file
  * @brief   Routing extension header definitions.
  *
- * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
+ * @author  Cenk Gündoğan <cnkgndgn@gmail.com>
+ * @author  Martine Lenders <m.lenders@fu-berlin.de>
  */
-#ifndef IPV6_EXT_RH_H_
-#define IPV6_EXT_RH_H_
+#ifndef NET_IPV6_EXT_RH_H
+#define NET_IPV6_EXT_RH_H
 
 #include <stdint.h>
-
-#include "net/ipv6/addr.h"
-#include "net/ipv6/hdr.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
+ * @name Routing header types
+ * @see [IANA, IPv6 parameters](https://www.iana.org/assignments/ipv6-parameters/ipv6-parameters.xhtml#ipv6-parameters-3)
+ * @{
+ */
+/**
+ * @brief   Type 0 routing header (deprecated)
+ */
+#define IPV6_EXT_RH_TYPE_0          (0U)
+
+/**
+ * @brief   Nimrod routing header (deprecated)
+ */
+#define IPV6_EXT_RH_TYPE_NIMROD     (1U)
+
+/**
+ * @brief   Type 2 routing header
+ * @see     [RFC 6275, section 6.4](https://tools.ietf.org/html/rfc6275#section-6.4)
+ */
+#define IPV6_EXT_RH_TYPE_2          (2U)
+
+/**
+ * @brief   RPL source routing header
+ * @see     [RFC 6554](https://tools.ietf.org/html/rfc6554)
+ */
+#define IPV6_EXT_RH_TYPE_RPL_SRH    (3U)
+/** @} */
+
+/**
  * @brief   IPv6 routing extension header.
  *
- * @see <a href="https://tools.ietf.org/html/rfc2460#section-4.4">
- *          RFC 2460, section 4.4
- *      </a>
+ * @see [RFC 8200](https://tools.ietf.org/html/rfc8200#section-4.4)
  *
  * @extends ipv6_ext_t
  */
@@ -45,19 +70,9 @@ typedef struct __attribute__((packed)) {
     uint8_t seg_left;   /**< number of route segments remaining */
 } ipv6_ext_rh_t;
 
-/**
- * @brief   Extract next hop from the routing header of an IPv6 packet.
- *
- * @param[in] ipv6      An IPv6 packet.
- *
- * @return  next hop on success, on success
- * @return  NULL, if not found.
- */
-ipv6_addr_t *ipv6_ext_rh_next_hop(ipv6_hdr_t *ipv6);
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* IPV6_EXT_RH_H_ */
+#endif /* NET_IPV6_EXT_RH_H */
 /** @} */

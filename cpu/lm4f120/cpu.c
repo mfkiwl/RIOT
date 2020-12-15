@@ -19,12 +19,12 @@
 
 #include "cpu.h"
 #include "irq.h"
-#include "kernel.h"
-#include "kernel_internal.h"
 #include "sched.h"
 #include "thread.h"
-#include "arch/thread_arch.h"
-#include "arch/irq_arch.h"
+#include "irq.h"
+#include "periph/init.h"
+#include "periph_conf.h"
+#include "stdio_base.h"
 
 /**
  * @brief Initialize the CPU, set IRQ priorities
@@ -36,6 +36,12 @@ void cpu_init(void)
 
     /* initialize the clock system */
     cpu_clock_init(CLOCK_SOURCE);
+
+    /* initialize stdio prior to periph_init() to allow use of DEBUG() there */
+    stdio_init();
+
+    /* trigger static peripheral initialization */
+    periph_init();
 }
 
 void setup_fpu(void)

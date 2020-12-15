@@ -14,30 +14,35 @@
  * @note    Do not include this header file directly, but pthread.h.
  * @warning Spinlocks should be avoided.
  *          They will burn away the battery needlessly, and may not work because RIOT is tickless.
- *          Use disableIRQ() and restoreIRQ() for shortterm locks instead.
+ *          Use irq_disable() and irq_restore() for shortterm locks instead.
  */
 
-#ifndef SYS_POSIX_PTHREAD_SPIN_H_
-#define SYS_POSIX_PTHREAD_SPIN_H_
-
-#include <errno.h>
+#ifndef PTHREAD_SPIN_H
+#define PTHREAD_SPIN_H
 
 #ifdef __cplusplus
-extern "C" {
+#include <atomic>
+using std::atomic_flag;
+#else
+#include <stdatomic.h>
 #endif
 
 /**
  * @brief           A spinlock.
  * @warning         Spinlocks should be avoided.
  *                  They will burn away the battery needlessly, and may not work because RIOT is tickless.
- *                  Use disableIRQ() and restoreIRQ() for shortterm locks instead.
+ *                  Use irq_disable() and irq_restore() for shortterm locks instead.
  */
 typedef struct {
-    atomic_int_t value;
+    atomic_flag flag; /**< Current lock state */
 } pthread_spinlock_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
- * @brief           Intializes a spinlock.
+ * @brief           Initializes a spinlock.
  * @warning         See the warning in pthread_spinlock_t.
  * @details         A zeroed out datum is initialized.
  * @param[in,out]   lock      Datum to initialize.
@@ -91,7 +96,7 @@ int pthread_spin_unlock(pthread_spinlock_t *lock);
 }
 #endif
 
-#endif
+#endif /* PTHREAD_SPIN_H */
 
 /**
  * @}

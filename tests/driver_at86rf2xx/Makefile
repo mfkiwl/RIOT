@@ -1,14 +1,8 @@
-APPLICATION = driver_at86rf2xx
 include ../Makefile.tests_common
 
-FEATURES_REQUIRED = periph_spi periph_gpio
+DISABLE_MODULE += auto_init_at86rf2xx
 
-BOARD_INSUFFICIENT_MEMORY := nucleo-f334 stm32f0discovery weio
-
-USEMODULE += auto_init_gnrc_netif
-USEMODULE += gnrc_netif
-USEMODULE += gnrc_nomac
-USEMODULE += gnrc_pktdump
+USEMODULE += od
 USEMODULE += shell
 USEMODULE += shell_commands
 USEMODULE += ps
@@ -29,7 +23,5 @@ DRIVER ?= at86rf231
 
 # include the selected driver
 USEMODULE += $(DRIVER)
-
-CFLAGS += -DDEVELHELP
 
 include $(RIOTBASE)/Makefile.include

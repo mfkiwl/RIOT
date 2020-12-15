@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009, 2010  Kaspar Schleiser <kaspar@schleiser.de>
+ * Copyright (C) 2008, 2009, 2010 Kaspar Schleiser <kaspar@schleiser.de>
  * Copyright (C) 2013 INRIA
  * Copyright (C) 2013 Ludwig Knüpfer <ludwig.knuepfer@fu-berlin.de>
  *
@@ -29,14 +29,6 @@
 #include "shell.h"
 #include "shell_commands.h"
 
-#if FEATURE_PERIPH_RTC
-#include "periph/rtc.h"
-#endif
-
-#ifdef MODULE_LTC4150
-#include "ltc4150.h"
-#endif
-
 #ifdef MODULE_NETIF
 #include "net/gnrc/pktdump.h"
 #include "net/gnrc.h"
@@ -44,19 +36,9 @@
 
 int main(void)
 {
-#ifdef MODULE_LTC4150
-    ltc4150_start();
-#endif
-
-#ifdef FEATURE_PERIPH_RTC
-    rtc_init();
-#endif
-
 #ifdef MODULE_NETIF
-    gnrc_netreg_entry_t dump;
-
-    dump.pid = gnrc_pktdump_getpid();
-    dump.demux_ctx = GNRC_NETREG_DEMUX_CTX_ALL;
+    gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL,
+                                                          gnrc_pktdump_pid);
     gnrc_netreg_register(GNRC_NETTYPE_UNDEF, &dump);
 #endif
 

@@ -20,8 +20,8 @@
  * @author      Cenk Gündoğan <cnkgndgn@gmail.com>
  */
 
-#ifndef GNRC_RPL_DODAG_H_
-#define GNRC_RPL_DODAG_H_
+#ifndef NET_GNRC_RPL_DODAG_H
+#define NET_GNRC_RPL_DODAG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -102,11 +102,12 @@ gnrc_rpl_instance_t *gnrc_rpl_instance_get(uint8_t instance_id);
  *
  * @param[in]   instance        Pointer to the instance to add the DODAG to
  * @param[in]   dodag_id        The DODAG-ID of the new DODAG
+ * @param[in]   iface           Interface PID where the DODAG operates
  *
  * @return  true, if DODAG could be created.
  * @return  false, if DODAG could not be created or exists already.
  */
-bool gnrc_rpl_dodag_init(gnrc_rpl_instance_t *instance, ipv6_addr_t *dodag_id);
+bool gnrc_rpl_dodag_init(gnrc_rpl_instance_t *instance, ipv6_addr_t *dodag_id, kernel_pid_t iface);
 
 /**
  * @brief   Remove all parents from the @p dodag.
@@ -147,6 +148,14 @@ bool gnrc_rpl_parent_remove(gnrc_rpl_parent_t *parent);
 void gnrc_rpl_parent_update(gnrc_rpl_dodag_t *dodag, gnrc_rpl_parent_t *parent);
 
 /**
+ * @brief Removes the dodag state of @p dodag after
+ * CONFIG_GNRC_RPL_CLEANUP_TIME milliseconds
+ *
+ * @param[in] dodag     Pointer to the DODAG
+ */
+void gnrc_rpl_cleanup_start(gnrc_rpl_dodag_t *dodag);
+
+/**
  * @brief   Start a local repair.
  *
  * @param[in] dodag     Pointer to the DODAG
@@ -170,7 +179,7 @@ void gnrc_rpl_router_operation(gnrc_rpl_dodag_t *dodag);
 }
 #endif
 
-#endif /* GNRC_RPL_DODAG_H_ */
+#endif /* NET_GNRC_RPL_DODAG_H */
 /**
  * @}
  */

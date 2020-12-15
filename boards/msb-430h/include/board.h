@@ -7,9 +7,7 @@
  */
 
 /**
- * @defgroup    boards_msb430h MSB-430H
- * @ingroup     boards
- * @brief       Support for the ScatterWeb MSB-430H board
+ * @ingroup     boards_msb430h
  * @{
  *
  * @file
@@ -19,61 +17,45 @@
  * @author      Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef MSB_BOARD_H_
-#define MSB_BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
+
+#include "board_common.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* for correct inclusion of <msp430.h> */
+/**
+ * @brief   Define the CPU model for the <msp430.h>
+ */
 #ifndef __MSP430F1612__
 #define __MSP430F1612__
 #endif
 
 /**
- * @brief   Xtimer configuration
+ * @name    CPU core configuration
  * @{
  */
-#define XTIMER                      (0)
-#define XTIMER_CHAN                 (0)
-#define XTIMER_MASK                 (0xffff0000)
-#define XTIMER_SHIFT_ON_COMPARE     (4)
-#define XTIMER_BACKOFF              (40)
-/** @} */
-
-/**
- * @brief   Standard input/output device configuration
- * @{
- */
-#define STDIO                       (0)
-#define STDIO_BAUDRATE              (115200U)
-#define STDIO_RX_BUFSIZE            (64U)
-/** @} */
-
-//MSB430 core
+/** @todo   Move this to the periph_conf.h */
 #define MSP430_INITIAL_CPU_SPEED    7372800uL
 #define F_CPU                       MSP430_INITIAL_CPU_SPEED
 #define F_RC_OSCILLATOR             32768
 #define MSP430_HAS_DCOR             1
 #define MSP430_HAS_EXTERNAL_CRYSTAL 1
+/** @} */
 
-/* LEDs ports MSB430 */
-#define LEDS_PxDIR P5DIR
-#define LEDS_PxOUT P5OUT
-#define LEDS_CONF_RED       0x80
-#define LEDS_CONF_GREEN     0x00
-#define LEDS_CONF_YELLOW    0x00
-
-#define LED_RED_ON          LEDS_PxOUT &=~LEDS_CONF_RED
-#define LED_RED_OFF         LEDS_PxOUT |= LEDS_CONF_RED
-#define LED_RED_TOGGLE      LEDS_PxOUT ^= LEDS_CONF_RED
+/**
+ * @name   Configure on-board SHT11 device
+ * @{
+ */
+#define SHT1X_PARAM_CLK             (GPIO_PIN(3, 5))
+#define SHT1X_PARAM_DATA            (GPIO_PIN(3, 4))
+/** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#include "board-conf.h"
-
 /** @} */
-#endif /* MSB_BOARD_H_ */
+#endif /* BOARD_H */

@@ -28,17 +28,17 @@ extern "C" {
 #endif
 
 /**
- * @brief   Clock configuration
- *
- * @todo    Move all clock configuration code here from the board.h
+ * @name    Clock configuration
+ * @{
  */
+/** @todo   Move all clock configuration code here from the board.h */
 #define CLOCK_CORECLOCK     (7372800U)
 
 #define CLOCK_CMCLK         CLOCK_CORECLOCK     /* no divider programmed */
 /** @} */
 
 /**
- * @brief   Timer configuration
+ * @name    Timer configuration
  * @{
  */
 #define TIMER_NUMOF         (1U)
@@ -49,11 +49,10 @@ extern "C" {
 /** @} */
 
 /**
- * @brief   UART configuration
+ * @name    UART configuration
  * @{
  */
 #define UART_NUMOF          (1U)
-#define UART_0_EN           (1U)
 
 #define UART_BASE           (USART_1)
 #define UART_IE             (SFR->IE2)
@@ -70,23 +69,22 @@ extern "C" {
 /** @} */
 
 /**
- * @brief   SPI configuration
+ * @name    SPI configuration
  * @{
  */
 #define SPI_NUMOF           (1U)
-#define SPI_0_EN            (1U)
 
 /* SPI configuration */
-#define SPI_DEV             (USART_0)
+#define SPI_BASE            (USART_0)
 #define SPI_IE              (SFR->IE1)
 #define SPI_IF              (SFR->IFG1)
 #define SPI_IE_RX_BIT       (1 << 6)
 #define SPI_IE_TX_BIT       (1 << 7)
 #define SPI_ME              (SFR->ME1)
 #define SPI_ME_BIT          (1 << 6)
-#define SPI_PIN_MISO        GPIO_PIN(P3,2)
-#define SPI_PIN_MOSI        GPIO_PIN(P3,1)
-#define SPI_PIN_CLK         GPIO_PIN(P3,3)
+#define SPI_PIN_MISO        GPIO_PIN(P3, 2)
+#define SPI_PIN_MOSI        GPIO_PIN(P3, 1)
+#define SPI_PIN_CLK         GPIO_PIN(P3, 3)
 /** @} */
 
 #ifdef __cplusplus

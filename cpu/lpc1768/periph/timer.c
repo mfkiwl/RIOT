@@ -8,6 +8,7 @@
 
 /**
  * @ingroup     cpu_lpc1768
+ * @ingroup     drivers_periph_timer
  * @{
  *
  * @file
@@ -20,13 +21,8 @@
 #include <stdint.h>
 
 #include "cpu.h"
-#include "sched.h"
-#include "thread.h"
 #include "periph_conf.h"
 #include "periph/timer.h"
-
-/* guard file in case no timers are defined */
-#if TIMER_0_EN
 
 /**
  * @name Timer channel interrupt flags
@@ -39,22 +35,16 @@
 /** @} */
 
 /**
- * @brief Struct holding the configuration data for a UART device
- */
-typedef struct {
-    void (*cb)(int);            /**< timeout callback */
-} timer_conf_t;
-
-/**
  * @brief UART device configurations
  */
-static timer_conf_t config[TIMER_NUMOF];
+static timer_isr_ctx_t config[TIMER_NUMOF];
 
-int timer_init(tim_t dev, unsigned int us_per_tick, void (*callback)(int))
+int timer_init(tim_t dev, uint32_t freq, timer_cb_t cb, void *arg)
 {
-    if (dev == TIMER_0) {
+    if (dev == 0) {
         /* save callback */
-        config[TIMER_0].cb = callback;
+        config[dev].cb = cb;
+        config[dev].arg = arg;
         /* enable power for timer */
         TIMER_0_CLKEN();
         /* let timer run with full frequency */
@@ -62,7 +52,7 @@ int timer_init(tim_t dev, unsigned int us_per_tick, void (*callback)(int))
         /* set to timer mode */
         TIMER_0_DEV->CTCR = 0;
         /* configure prescaler */
-        TIMER_0_DEV->PR = (us_per_tick * TIMER_0_PRESCALER);
+        TIMER_0_DEV->PR = (TIMER_0_FREQ / freq) - 1;
         /* configure and enable timer interrupts */
         NVIC_SetPriority(TIMER_0_IRQ, TIMER_IRQ_PRIO);
         NVIC_EnableIRQ(TIMER_0_IRQ);
@@ -73,18 +63,9 @@ int timer_init(tim_t dev, unsigned int us_per_tick, void (*callback)(int))
     return -1;
 }
 
-int timer_set(tim_t dev, int channel, unsigned int timeout)
-{
-    if (dev == TIMER_0) {
-        unsigned int now = timer_read(dev);
-        return timer_set_absolute(dev, channel, now + timeout);
-    }
-    return -1;
-}
-
 int timer_set_absolute(tim_t dev, int channel, unsigned int value)
 {
-    if (dev == TIMER_0) {
+    if (dev == 0) {
         switch (channel) {
             case 0:
                 TIMER_0_DEV->MR0 = value;
@@ -102,23 +83,23 @@ int timer_set_absolute(tim_t dev, int channel, unsigned int value)
                 return -1;
         }
         TIMER_0_DEV->MCR |= (1 << (channel * 3));
-        return 1;
+        return 0;
     }
     return -1;
 }
 
 int timer_clear(tim_t dev, int channel)
 {
-    if (dev == TIMER_0 && channel >= 0 && channel < TIMER_0_CHANNELS) {
+    if (dev == 0 && channel >= 0 && channel < TIMER_0_CHANNELS) {
         TIMER_0_DEV->MCR &= ~(1 << (channel * 3));
-        return 1;
+        return 0;
     }
     return -1;
 }
 
 unsigned int timer_read(tim_t dev)
 {
-    if (dev == TIMER_0) {
+    if (dev == 0) {
         return (unsigned int)TIMER_0_DEV->TC;
     }
     return 0;
@@ -126,59 +107,42 @@ unsigned int timer_read(tim_t dev)
 
 void timer_start(tim_t dev)
 {
-    if (dev == TIMER_0) {
+    if (dev == 0) {
         TIMER_0_DEV->TCR |= 1;
     }
 }
 
 void timer_stop(tim_t dev)
 {
-    if (dev == TIMER_0) {
+    if (dev == 0) {
         TIMER_0_DEV->TCR &= ~(1);
     }
 }
 
-void timer_irq_enable(tim_t dev)
-{
-    if (dev == TIMER_0) {
-        NVIC_EnableIRQ(TIMER_0_IRQ);
-    }
-}
-
-void timer_irq_disable(tim_t dev)
-{
-    if (dev == TIMER_0) {
-        NVIC_DisableIRQ(TIMER_0_IRQ);
-    }
-}
-
-#if TIMER_0_EN
+#ifdef TIMER_0_ISR
 void TIMER_0_ISR(void)
 {
+    uint32_t timer = 0;
     if (TIMER_0_DEV->IR & MR0_FLAG) {
         TIMER_0_DEV->IR |= (MR0_FLAG);
         TIMER_0_DEV->MCR &= ~(1 << 0);
-        config[TIMER_0].cb(0);
+        config[timer].cb(config[timer].arg, 0);
     }
     if (TIMER_0_DEV->IR & MR1_FLAG) {
         TIMER_0_DEV->IR |= (MR1_FLAG);
         TIMER_0_DEV->MCR &= ~(1 << 3);
-        config[TIMER_0].cb(1);
+        config[timer].cb(config[timer].arg, 1);
     }
     if (TIMER_0_DEV->IR & MR2_FLAG) {
         TIMER_0_DEV->IR |= (MR2_FLAG);
         TIMER_0_DEV->MCR &= ~(1 << 6);
-        config[TIMER_0].cb(2);
+        config[timer].cb(config[timer].arg, 2);
     }
     if (TIMER_0_DEV->IR & MR3_FLAG) {
         TIMER_0_DEV->IR |= (MR3_FLAG);
         TIMER_0_DEV->MCR &= ~(1 << 9);
-        config[TIMER_0].cb(3);
+        config[timer].cb(config[timer].arg, 3);
     }
-    if (sched_context_switch_request) {
-        thread_yield();
-    }
+    cortexm_isr_end();
 }
 #endif
-
-#endif /* TIMER_0_EN */

@@ -7,7 +7,7 @@
  */
 
 /**
- * @ingroup     driver_enc28j60
+ * @ingroup     drivers_enc28j60
  * @{
  *
  * @file
@@ -26,11 +26,11 @@ extern "C" {
 #endif
 
 /**
- * @brief   Set default configuration parameters for the ENC28J60 driver
+ * @name    Set default configuration parameters for the ENC28J60 driver
  * @{
  */
 #ifndef ENC28J60_PARAM_SPI
-#define ENC28J60_PARAM_SPI      (SPI_0)
+#define ENC28J60_PARAM_SPI      (SPI_DEV(0))
 #endif
 #ifndef ENC28J60_PARAM_CS
 #define ENC28J60_PARAM_CS       (GPIO_PIN(0, 0))
@@ -41,18 +41,20 @@ extern "C" {
 #ifndef ENC28J60_PARAM_RESET
 #define ENC28J60_PARAM_RESET    (GPIO_PIN(0, 2))
 #endif
+
+#ifndef ENC28J60_PARAMS
+#define ENC28J60_PARAMS         { .spi = ENC28J60_PARAM_SPI,     \
+                                  .cs_pin = ENC28J60_PARAM_CS,   \
+                                  .int_pin = ENC28J60_PARAM_INT, \
+                                  .rst_pin = ENC28J60_PARAM_RESET }
+#endif
 /** @} */
 
 /**
  * @brief   ENC28J60 configuration
  */
 static const  enc28j60_params_t enc28j60_params[] = {
-    {
-        .spi = ENC28J60_PARAM_SPI,
-        .cs_pin = ENC28J60_PARAM_CS,
-        .int_pin = ENC28J60_PARAM_INT,
-        .reset_pin = ENC28J60_PARAM_RESET,
-    },
+    ENC28J60_PARAMS
 };
 /** @} */
 

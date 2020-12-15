@@ -1,34 +1,25 @@
 PKG_NAME=cmsis-dsp
-PKG_URL=https://github.com/gebart/CMSIS-DSP.git
-PKG_VERSION=v1.4.5-riot1
-PKG_DIR=$(CURDIR)/$(PKG_NAME)
+PKG_URL=https://github.com/ARM-software/CMSIS_5
+PKG_VERSION=5.4.0
+PKG_LICENSE=Apache-2.0
 
-ifneq ($(RIOTBASE),)
-include $(RIOTBASE)/Makefile.base
-endif
+include $(RIOTBASE)/pkg/pkg.mk
 
-.PHONY: all clean patch distclean
+CMSIS_DSP_MODULES =                \
+    cmsis-dsp_BasicMathFunctions   \
+    cmsis-dsp_CommonTables         \
+    cmsis-dsp_ComplexMathFunctions \
+    cmsis-dsp_ControllerFunctions  \
+    cmsis-dsp_FastMathFunctions    \
+    cmsis-dsp_FilteringFunctions   \
+    cmsis-dsp_MatrixFunctions      \
+    cmsis-dsp_StatisticsFunctions  \
+    cmsis-dsp_SupportFunctions     \
+    cmsis-dsp_TransformFunctions   \
 
-all: $(PKG_DIR)/Makefile
-	$(MAKE) -C $(CURDIR)/$(PKG_NAME)
+.PHONY: cmsis-dsp_%
 
-$(PKG_DIR)/Makefile: $(PKG_DIR)/.git/config
-	@
+all: $(CMSIS_DSP_MODULES)
 
-$(PKG_DIR)/.git/config:
-	test -d "$(PKG_DIR)" || git clone "$(PKG_URL)" "$(PKG_DIR)"; \
-		cd "$(PKG_DIR)" && git checkout -f "$(PKG_VERSION)"
-
-$(CURDIR)/$(PKG_NAME) $(PKG_NAME):
-	# Get PKG_VERSION of package from PKG_URL
-	git clone '$(PKG_URL)' '$(PKG_NAME)' && cd '$(PKG_NAME)' && git reset --hard '$(PKG_VERSION)'
-
-clean::
-	@echo "Cleaning up $(PKG_NAME) package..."
-	@-cd "$(PKG_DIR)" 2> /dev/null > /dev/null && \
-		git clean -x -f && \
-		git am --abort && \
-		git reset --hard "$(PKG_VERSION)"
-
-distclean::
-	rm -rf "$(PKG_DIR)"
+cmsis-dsp_%:
+	$(MAKE) -C $(PKG_SOURCE_DIR)/CMSIS/DSP/Source/$* -f $(CURDIR)/Makefile.cmsis-dsp MODULE=$@

@@ -21,6 +21,7 @@
 #ifndef CPU_CONF_H
 #define CPU_CONF_H
 
+#include "cpu_conf_common.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -42,12 +43,12 @@ extern "C" {
 #include "stellaris_periph/timer.h"
 #include "stellaris_periph/pin_map.h"
 #include "stellaris_periph/uart.h"
+#include "stellaris_periph/ssi.h"
 #include "stellaris_periph/fpu.h"
 #include "stellaris_periph/rom.h"
-#include "periph/uart.h"
 
 #ifdef CPU_MODEL_LM4F120H5QR
-#include "lm4f120h5qr.h"
+#include "vendor/lm4f120h5qr.h"
 #endif
 
 /**
@@ -55,16 +56,9 @@ extern "C" {
  * @{
  */
 #define CPU_DEFAULT_IRQ_PRIO            (1U)
-#define CPU_IRQ_NUMOF                   (48U)
+#define CPU_IRQ_NUMOF                   (139U)
 #define CPU_FLASH_BASE                  FLASH_BASE
-/** @} */
-
-/**
- * @brief Length for reading CPU_ID
- * @{
- */
-#define CPUID_ID_LEN                    (12)
-#define CPUID_ADDR                      NVIC_CPUID
+#define CPU_HAS_BITBAND                 (1)
 /** @} */
 
 /**

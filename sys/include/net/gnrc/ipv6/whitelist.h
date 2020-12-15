@@ -17,8 +17,8 @@
  *
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
-#ifndef GNRC_IPV6_WHITELIST_H_
-#define GNRC_IPV6_WHITELIST_H_
+#ifndef NET_GNRC_IPV6_WHITELIST_H
+#define NET_GNRC_IPV6_WHITELIST_H
 
 #include <stdbool.h>
 
@@ -29,11 +29,18 @@ extern "C" {
 #endif
 
 /**
+ * @defgroup    net_gnrc_ipv6_whitelist_conf GNRC IPv6 address whitelisting compile configurations
+ * @ingroup     net_gnrc_ipv6_whitelist
+ * @ingroup     net_gnrc_conf
+ * @{
+ */
+/**
  * Maximum size of the whitelist.
  */
-#ifndef GNRC_IPV6_WHITELIST_SIZE
-#define GNRC_IPV6_WHITELIST_SIZE    (8)
+#ifndef CONFIG_GNRC_IPV6_WHITELIST_SIZE
+#define CONFIG_GNRC_IPV6_WHITELIST_SIZE    (8)
 #endif
+/** @} */
 
 /**
  * @brief   Adds an IPv6 address to the whitelist.
@@ -73,5 +80,5 @@ void gnrc_ipv6_whitelist_print(void);
 }
 #endif
 
-#endif /* GNRC_IPV6_WHITELIST_H_ */
+#endif /* NET_GNRC_IPV6_WHITELIST_H */
 /** @} */

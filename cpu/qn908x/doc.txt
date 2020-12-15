@@ -1,0 +1,134 @@
+/* NXP QN908x specific information for the `periph` drivers */
+/**
+
+@defgroup    cpu_qn908x NXP QN908x
+@ingroup     cpu
+@brief       NXP QN908x BLE-enabled Cortex-M4F MCU specific implementation
+
+The NXP QN908x family of chips such as the QN9080 feature a Cortex-M4F,
+Bluetooth Low Energy, USB 2.0 and in some SKUs like the QN9080SIP NFC as well.
+The CPU is designed to be ultra-low-power and high-performance, allowing
+applications with small battery capacity. It includes an optional DC-DC and LDO,
+low power sleep timers, I2C, SPI, ADC, SPIFI and several other peripherals.
+
+
+@defgroup    cpu_qn908x_cpuid NXP QN908x CPUID
+@ingroup     cpu_qn908x
+@brief       NXP QN908x CPUID driver
+
+No configuration is necessary. The CPUID value is based on the factory assigned
+default Bluetooth address in the read-only flash section which may not be the
+Bluetooth address used by the Bluetooth module if a different one was programmed
+there.
+
+
+@defgroup    cpu_qn908x_gpio NXP QN908x GPIO
+@ingroup     cpu_qn908x
+@brief       NXP QN908x GPIO driver
+
+The GPIO driver uses the @ref GPIO_PIN(port, pin) macro to declare pins.
+
+No configuration is necessary.
+
+
+@defgroup    cpu_qn908x_timer NXP QN908x Standard counter/timers (CTIMER)
+@ingroup     cpu_qn908x
+@brief       NXP QN908x timer driver
+
+The QN908x have 4 standard counter/timers (CTIMER). These timers allow to count
+clock cycles from the APB clock with a 32-bit prescaler, effectively dividing
+the APB clock frequency by a configurable number up to 2^32, allowing a great
+range of timer frequencies selected at runtime. Each timer has 4 independent
+channels to match against which can generate an interrupt.
+
+TODO: These CTIMERs and the SCT timers can both be used as PWM as well, with
+different set of capabilities. Boards should be able to split these CTIMER and
+SCT blocks between pwm and timer functions.
+
+### Timer configuration example (for periph_conf.h) ###
+
+    #define TIMER_NUMOF           4
+
+
+@defgroup    cpu_qn908x_rtc NXP QN908x Real-Time-Clock (RTC)
+@ingroup     cpu_qn908x
+@brief       NXP QN908x RTC driver
+
+The RTC block in the QN908x can be driven by the external 32.768 kHz crystal or
+by the internal 32 kHz RCO oscillator clock, whichever is selected as the
+`CLK_32K` clock source. The RTC has an internal "second counter" calibrated
+depending on the frequency of the clock source selected at the time the RTC
+clock is initialized by calling @ref rtc_init.
+
+The RTC function in this cpu doesn't have a match against a target value to
+generate an interrupt like the timer peripheral, instead, the alarm function in
+the rtc.h interface is implemented by an interrupt generated every second which
+checks the target value in software. Keep in mind that while the RTC can operate
+while the cpu is the power-down 0 mode, using the alarm functionality during
+that time means that the cpu will wake up every second for a brief moment,
+potentially impacting the power consumption.
+
+No RTC-specific configuration is necessary.
+
+
+@defgroup    cpu_qn908x_uart NXP QN908x UART
+@ingroup     cpu_qn908x
+@brief       NXP QN908x UART driver
+
+There are several FLEXCOMM interfaces in this chip, but only two of these
+support UART (FLEXCOMM0 and FLEXCOMM1). The default UART mode is 8n1 and can
+be changed with the uart_mode() function. If only RX or only TX is desired, the
+other pin can be set to GPIO_UNDEF.
+
+### UART configuration example (for periph_conf.h) ###
+
+    static const uart_conf_t uart_config[] = {
+        {
+            .dev          = USART0,
+            .rx_pin       = GPIO_PIN(PORT_A, 17), /* or 5 */
+            .tx_pin       = GPIO_PIN(PORT_A, 16), /* or 4 */
+        },
+        {
+            .dev          = USART1,
+            .rx_pin       = GPIO_PIN(PORT_A, 9), /* or 13 */
+            .tx_pin       = GPIO_PIN(PORT_A, 8), /* or 12 */
+        },
+    };
+    #define UART_NUMOF          ARRAY_SIZE(uart_config)
+
+
+@defgroup    cpu_qn908x_wdt NXP QN908x Watchdog timer (WDT)
+@ingroup     cpu_qn908x
+@brief       NXP QN908x Watchdog timer (WDT)
+
+The Watchdog timer in the NXP QN908x starts disabled on reset: the clock bit
+`CLK_WDT_EN` is enabled in the `CLK_EN` register on reset so the timer is
+running but the interrupt and reset functions are disabled. However, after the
+read-only bootloader ROM in the QN908x transfer the control flow to the user
+application (the RIOT kernel) the Watchdog is enabled with a timeout of 10
+seconds.
+
+If your board does not include the `periph_wdt` module, the Watchdog will be
+disabled at `cpu_init()` time and there's no configuration necessary. However,
+if your board or application does include it, the Watchdog will be left
+configured with the 10 second timeout set by the Bootloader and you need to
+call `wdt_setup_reboot()` or `wdt_setup_reboot_with_callback()` within the first
+10 seconds.
+
+The WDT block supports different clock sources which would be configured by the
+board since they depend on whether the optional crystals are populated in your
+board. Nevertheless, the millisecond values passed to `wdt_setup_reboot*` are
+internally converted to clock ticks using the clock configured at the time the
+function was called. `wdt_setup_reboot*()` can be called multiple times to
+change the WDT parameters or after changing the WDT clock source, but in any
+case `wdt_start()` must be called after it to start the WDT operation.
+
+Once the WDT triggers, it is not possible to avoid the device reboot and calling
+wdt_kick() from the WDT callback (if any) or after the callback was called will
+not have any effect. Note that, however, if the WDT callback returns before the
+configured CONFIG_WDT_WARNING_PERIOD the CPU will continue executing the code
+before the WDT interrupt occurred. If this is not desired, an infinite loop at
+the end of the WDT callback, after the safety operations have been performed is
+advisable.
+
+*/

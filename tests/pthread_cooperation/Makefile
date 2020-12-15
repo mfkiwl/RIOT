@@ -1,10 +1,17 @@
-APPLICATION = pthread_cooperation
 include ../Makefile.tests_common
 
-BOARD_BLACKLIST := arduino-mega2560
-# arduino-mega2560: unknown type name: clockid_t
+# nucleo-f303k8 doesn't have enough RAM to run the test so we reduce the stack
+# size for every thread
+ifneq (,$(filter nucleo-f303k8,$(BOARD)))
+  CFLAGS += -DTHREAD_STACKSIZE_DEFAULT=512
+endif
 
-USEMODULE += posix
+# The test compiles, but these boards have too little RAM for
+# dynamic allocation of thread stacks
+BOARD_BLACKLIST := arduino-nano arduino-duemilanove \
+                   arduino-uno nucleo-f031k6 stm32f030f4-demo
+
+USEMODULE += posix_headers
 USEMODULE += pthread
 
 include $(RIOTBASE)/Makefile.include

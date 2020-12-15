@@ -2,6 +2,7 @@ PKG_NAME    = my_pkg                       # name of the package
 PKG_URL     = http://example.com/downloads # source url of the package e.g. a git repository
 PKG_VERSION = v1.2.3                       # version of the package to use e.g. a git commit/ref
 PKG_EXT     = zip                          # extension of this package
+PKG_LICENSE = MIT                          # license of the package
 
 ifneq ($(RIOTBASE),)
 include $(RIOTBASE)/Makefile.base
@@ -25,11 +26,11 @@ $(CURDIR)/$(PKG_NAME)-$(PKG_VERSION)/Makefile: $(CURDIR)/$(PKG_NAME)-$(PKG_VERSI
 $(CURDIR)/$(PKG_NAME)-$(PKG_VERSION)/: $(CURDIR)/$(PKG_NAME)-$(PKG_VERSION).$(PKG_EXT)
 	# Here you unpack the file.
 	# This example assumes the common pattern that the archive contains its data in a subfolder with the same name as itself.
-	$(AD)$(UNZIP_HERE) $<
+	$(Q)$(UNZIP_HERE) $<
 
 $(CURDIR)/$(PKG_NAME)-$(PKG_VERSION).$(PKG_EXT):
 	# Get PKG_VERSION of package from PKG_URL
-	$(AD)$(DOWNLOAD_TO_FILE) $@ $(PKG_URL)/$(PKG_NAME)-$(PKG_VERSION).$(PKG_EXT)
+	$(Q)$(DOWNLOAD_TO_FILE) $@ $(PKG_URL)/$(PKG_NAME)-$(PKG_VERSION).$(PKG_EXT)
 
 clean::
 	# Reset package to checkout state.

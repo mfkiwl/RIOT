@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <semaphore.h>
 
+#include "fmt.h"
 #include "msg.h"
 #include "timex.h"
 #include "thread.h"
@@ -77,8 +78,7 @@ static void test1(void)
     kernel_pid_t pid = thread_create(test1_thread_stack,
                                      sizeof(test1_thread_stack),
                                      THREAD_PRIORITY_MAIN - 1,
-                                     THREAD_CREATE_STACKTEST |
-                                     THREAD_CREATE_WOUT_YIELD,
+                                     THREAD_CREATE_STACKTEST,
                                      test1_second_thread,
                                      NULL,
                                      "second");
@@ -235,21 +235,39 @@ void test3(void)
     sem_post(&s1);
 }
 
+/*
+ * Allowed margin for waiting too long.
+ *
+ * Waiting too short is forbidden by POSIX, but is checked elsewhere.
+ *
+ * This allows waiting a little (0.1%) longer than exactly 1000000us.
+ * The value should be large enough to not trip over timer inaccuracies, but
+ * small enough to catch any fundamental problems.
+ */
+#define TEST4_TIMEOUT_EXCEEDED_MARGIN (1000)
+
 void test4(void)
 {
+    char uint64_str[20];
     struct timespec abs;
-    uint64_t now, start, stop;
+    uint64_t start, elapsed;
     const uint64_t exp = 1000000;
-    now = xtimer_now64();
-    abs.tv_sec = (time_t)((now / SEC_IN_USEC) + 1);
-    abs.tv_nsec = (long)((now % SEC_IN_USEC) * 1000);
+
     puts("first: sem_init s1");
     if (sem_init(&s1, 0, 0) < 0) {
         puts("first: sem_init FAILED");
     }
-    start = xtimer_now64();
+
     puts("first: wait 1 sec for s1");
-    if (sem_timedwait(&s1, &abs) != 0) {
+
+    start = xtimer_now_usec64();
+    abs.tv_sec = (time_t)((start / US_PER_SEC) + 1);
+    abs.tv_nsec = (long)((start % US_PER_SEC) * 1000);
+
+    int ret = sem_timedwait(&s1, &abs);
+    elapsed = xtimer_now_usec64() - start;
+
+    if (ret != 0) {
         if (errno != ETIMEDOUT) {
             printf("error waiting: %d\n", errno);
             return;
@@ -258,17 +276,22 @@ void test4(void)
             puts("first: timed out");
         }
     }
-    stop = xtimer_now64() - start;
-    if (stop < exp) {
-        printf("first: waited only %" PRIu64 " usec => FAILED\n", stop);
+
+    uint64_str[fmt_u64_dec(uint64_str, elapsed)] = '\0';
+    if (elapsed < exp) {
+        printf("first: waited only %s usec => FAILED\n", uint64_str);
     }
-    printf("first: waited %" PRIu64 " usec\n", stop);
+    else if (elapsed > (exp + TEST4_TIMEOUT_EXCEEDED_MARGIN)) {
+        printf("first: waited too long %s usec => FAILED\n", uint64_str);
+    }
+    else {
+        printf("first: waited %s usec\n", uint64_str);
+    }
 }
 
 int main(void)
 {
     msg_init_queue(main_msg_queue, SEMAPHORE_MSG_QUEUE_SIZE);
-    xtimer_init();
     puts("######################### TEST1:");
     test1();
     puts("######################### TEST2:");

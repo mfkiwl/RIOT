@@ -16,165 +16,144 @@
  * @author      Katja Kirstein <katja.kirstein@haw-hamburg.de>
  */
 
-#ifndef PERIPH_CONF_H_
-#define PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
 
 #include "periph_cpu.h"
+#include "clk_conf.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @name Clock system configuration
- * @{
- **/
-#define CLOCK_HSI           (16000000U)         /* internal oscillator */
-#define CLOCK_CORECLOCK     (32000000U)         /* desired core clock frequency */
-
-/* configuration of PLL prescaler and multiply values */
-/* CORECLOCK := HSI / CLOCK_PLL_DIV * CLOCK_PLL_MUL */
-#define CLOCK_PLL_DIV       RCC_CFGR_PLLDIV2
-#define CLOCK_PLL_MUL       RCC_CFGR_PLLMUL4
-/* configuration of peripheral bus clock prescalers */
-#define CLOCK_AHB_DIV       RCC_CFGR_HPRE_DIV1      /* AHB clock -> 32MHz */
-#define CLOCK_APB2_DIV      RCC_CFGR_PPRE2_DIV1     /* APB2 clock -> 32MHz */
-#define CLOCK_APB1_DIV      RCC_CFGR_PPRE1_DIV1     /* APB1 clock -> 32MHz */
-/* configuration of flash access cycles */
-#define CLOCK_FLASH_LATENCY FLASH_ACR_LATENCY
-/** @} */
-
-/**
- * @brief Timer configuration
+ * @name    Timer configuration
  * @{
  */
 static const timer_conf_t timer_config[] = {
-    /* device, RCC bit, IRQ bit */
-    {TIM5, 3, TIM5_IRQn},
+    {
+        .dev      = TIM5,
+        .max      = 0x0000ffff,
+        .rcc_mask = RCC_APB1ENR_TIM5EN,
+        .bus      = APB1,
+        .irqn     = TIM5_IRQn
+    }
 };
-/* interrupt routines */
+
 #define TIMER_0_ISR         (isr_tim5)
-/* number of defined timers */
-#define TIMER_NUMOF         (sizeof(timer_config) / sizeof(timer_config[0]))
+
+#define TIMER_NUMOF         ARRAY_SIZE(timer_config)
 /** @} */
 
 /**
- * @brief UART configuration
+ * @name    UART configuration
  * @{
  */
-#define UART_NUMOF          (2U)
-#define UART_0_EN           1
-#define UART_1_EN           1
-#define UART_IRQ_PRIO       1
+static const uart_conf_t uart_config[] = {
+    {
+        .dev        = USART3,
+        .rcc_mask   = RCC_APB1ENR_USART3EN,
+        .rx_pin     = GPIO_PIN(PORT_C, 11),
+        .tx_pin     = GPIO_PIN(PORT_C, 10),
+        .rx_af      = GPIO_AF7,
+        .tx_af      = GPIO_AF7,
+        .bus        = APB1,
+        .irqn       = USART3_IRQn
+    },
+    {
+        .dev        = USART1,
+        .rcc_mask   = RCC_APB2ENR_USART1EN,
+        .rx_pin     = GPIO_PIN(PORT_A, 10),
+        .tx_pin     = GPIO_PIN(PORT_A,  9),
+        .rx_af      = GPIO_AF7,
+        .tx_af      = GPIO_AF7,
+        .bus        = APB2,
+        .irqn       = USART1_IRQn
+    }
+};
 
-/* UART 0 device configuration */
-#define UART_0_DEV          USART3
-#define UART_0_CLKEN()      (RCC->APB1ENR |= RCC_APB1ENR_USART3EN)
-#define UART_0_CLK          (CLOCK_CORECLOCK)
-#define UART_0_IRQ          USART3_IRQn
-#define UART_0_ISR          isr_usart3
-#define UART_0_BUS_FREQ     32000000
-/* UART 0 pin configuration */
-#define UART_0_RX_PIN       GPIO_PIN(PORT_C, 11)
-#define UART_0_TX_PIN       GPIO_PIN(PORT_C, 10)
-#define UART_0_AF           GPIO_AF7
+#define UART_0_ISR          (isr_usart3)
+#define UART_1_ISR          (isr_usart1)
 
-/* UART 1 device configuration */
-#define UART_1_DEV          USART1        /* Panasonic PAN1740 BLE module */
-#define UART_1_CLKEN()      (RCC->APB2ENR |= RCC_APB2ENR_USART1EN)
-#define UART_1_CLK          (CLOCK_CORECLOCK)
-#define UART_1_IRQ          USART1_IRQn
-#define UART_1_ISR          isr_usart1
-#define UART_0_BUS_FREQ     32000000
-/* UART 1 pin configuration */
-#define UART_1_RX_PIN       GPIO_PIN(PORT_A, 10)
-#define UART_1_TX_PIN       GPIO_PIN(PORT_A, 9)
-#define UART_1_AF           GPIO_AF7
+#define UART_NUMOF          ARRAY_SIZE(uart_config)
 /** @} */
 
 /**
- * @brief SPI configuration
+ * @name    SPI configuration
  * @{
  */
-#define SPI_NUMOF           (2U)
-#define SPI_0_EN            1
-#define SPI_1_EN            1
+static const spi_conf_t spi_config[] = {
+    {
+        .dev      = SPI1,
+        .mosi_pin = GPIO_PIN(PORT_A, 7),
+        .miso_pin = GPIO_PIN(PORT_A, 6),
+        .sclk_pin = GPIO_PIN(PORT_A, 5),
+        .cs_pin   = GPIO_UNDEF,
+        .mosi_af  = GPIO_AF5,
+        .miso_af  = GPIO_AF5,
+        .sclk_af  = GPIO_AF5,
+        .cs_af    = GPIO_AF5,
+        .rccmask  = RCC_APB2ENR_SPI1EN,
+        .apbbus   = APB2
+    },
+    {
+        .dev      = SPI3,
+        .mosi_pin = GPIO_PIN(PORT_B, 5),
+        .miso_pin = GPIO_PIN(PORT_B, 4),
+        .sclk_pin = GPIO_PIN(PORT_B, 3),
+        .cs_pin   = GPIO_UNDEF,
+        .mosi_af  = GPIO_AF6,
+        .miso_af  = GPIO_AF6,
+        .sclk_af  = GPIO_AF6,
+        .cs_af    = GPIO_AF6,
+        .rccmask  = RCC_APB1ENR_SPI3EN,
+        .apbbus   = APB1
+    }
+};
 
-/* SPI 0 device configuration */
-#define SPI_0_DEV           SPI1  /* Densitron DD-160128FC-1a OLED display; external pins */
-#define SPI_0_CLKEN()       (RCC->APB2ENR |= RCC_APB2ENR_SPI1EN)
-#define SPI_0_CLKDIS()      (RCC->APB2ENR &= ~(RCC_APB2ENR_SPI1EN))
-#define SPI_0_IRQ           SPI1_IRQn
-#define SPI_0_ISR           isr_spi1
-/* SPI 0 pin configuration */
-#define SPI_0_PORT_CLKEN()  (RCC->AHBENR |= RCC_AHBENR_GPIOAEN)
-#define SPI_0_PORT          GPIOA
-#define SPI_0_PIN_SCK       5
-#define SPI_0_PIN_MOSI      7
-#define SPI_0_PIN_MISO      6
-#define SPI_0_PIN_AF        5
-
-/* SPI 1 device configuration */
-#define SPI_1_DEV           SPI3          /*  Adesto AT45DB641E data flash */
-#define SPI_1_CLKEN()       (RCC->APB1ENR |= RCC_APB1ENR_SPI3EN)
-#define SPI_1_CLKDIS()      (RCC->APB1ENR &= ~(RCC_APB1ENR_SPI3EN))
-#define SPI_1_IRQ           SPI3_IRQn
-#define SPI_1_ISR           isr_spi3
-/* SPI 1 pin configuration */
-#define SPI_1_PORT_CLKEN()  (RCC->AHBENR |= RCC_AHBENR_GPIOBEN)
-#define SPI_1_PORT          GPIOB
-#define SPI_1_PIN_SCK       3
-#define SPI_1_PIN_MOSI      5
-#define SPI_1_PIN_MISO      4
-#define SPI_1_PIN_AF        6
+#define SPI_NUMOF           ARRAY_SIZE(spi_config)
 /** @} */
 
 /**
- * @name I2C configuration
+ * @name    I2C configuration
   * @{
  */
-#define I2C_NUMOF           (2U)
-#define I2C_0_EN            1
-#define I2C_1_EN            1
-#define I2C_IRQ_PRIO        1
-#define I2C_APBCLK          (36000000U)
+static const i2c_conf_t i2c_config[] = {
+    {
+        .dev            = I2C1,
+        .speed          = I2C_SPEED_NORMAL,
+        .scl_pin        = GPIO_PIN(PORT_B, 8),
+        .sda_pin        = GPIO_PIN(PORT_B, 9),
+        .scl_af         = GPIO_AF4,
+        .sda_af         = GPIO_AF4,
+        .bus            = APB1,
+        .rcc_mask       = RCC_APB1ENR_I2C1EN,
+        .clk            = CLOCK_APB1,
+        .irqn           = I2C1_EV_IRQn
+    },
+    {
+        .dev            = I2C2,
+        .speed          = I2C_SPEED_NORMAL,
+        .scl_pin        = GPIO_PIN(PORT_B, 10),
+        .sda_pin        = GPIO_PIN(PORT_B, 11),
+        .scl_af         = GPIO_AF4,
+        .sda_af         = GPIO_AF4,
+        .bus            = APB1,
+        .rcc_mask       = RCC_APB1ENR_I2C2EN,
+        .clk            = CLOCK_APB1,
+        .irqn           = I2C2_EV_IRQn
+    }
+};
 
-/* I2C 0 device configuration */
-#define I2C_0_DEV           I2C1
-#define I2C_0_CLKEN()       (RCC->APB1ENR |= RCC_APB1ENR_I2C1EN)
-#define I2C_0_CLKDIS()      (RCC->APB1ENR &= ~(RCC_APB1ENR_I2C1EN))
-#define I2C_0_EVT_IRQ       I2C1_EV_IRQn
-#define I2C_0_EVT_ISR       isr_i2c1_ev
-#define I2C_0_ERR_IRQ       I2C1_ER_IRQn
-#define I2C_0_ERR_ISR       isr_i2c1_er
-/* I2C 0 pin configuration */
-#define I2C_0_PORT_CLKEN()  (RCC->AHBENR |= RCC_AHBENR_GPIOBEN)
-#define I2C_0_PORT          GPIOB
-#define I2C_0_SCL_PIN       8
-#define I2C_0_SCL_AF        4
-#define I2C_0_SDA_PIN       9
-#define I2C_0_SDA_AF        4
+#define I2C_0_ISR           isr_i2c1_ev
+#define I2C_1_ISR           isr_i2c2_ev
 
-/* I2C 1 device configuration */
-#define I2C_1_DEV           I2C2         /* ST VL6180X, ST LSM6DS3, ST LIS3MDL, ST SLPS25H */
-#define I2C_1_CLKEN()       (RCC->APB1ENR |= RCC_APB1ENR_I2C2EN)
-#define I2C_1_CLKDIS()      (RCC->APB1ENR &= ~(RCC_APB1ENR_I2C2EN))
-#define I2C_1_EVT_IRQ       I2C2_EV_IRQn
-#define I2C_1_EVT_ISR       isr_i2c2_ev
-#define I2C_1_ERR_IRQ       I2C2_ER_IRQn
-#define I2C_1_ERR_ISR       isr_i2c2_er
-/* I2C 1 pin configuration */
-#define I2C_1_PORT_CLKEN()  (RCC->AHBENR |= RCC_AHBENR_GPIOBEN)
-#define I2C_1_PORT          GPIOB
-#define I2C_1_SCL_PIN       10
-#define I2C_1_SCL_AF        4
-#define I2C_1_SDA_PIN       11
-#define I2C_1_SDA_AF        4
+#define I2C_NUMOF           ARRAY_SIZE(i2c_config)
 /** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __PERIPH_CONF_H */
+#endif /* PERIPH_CONF_H */
 /** @} */

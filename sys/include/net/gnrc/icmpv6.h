@@ -24,11 +24,11 @@
  * @todo build error messages
  */
 
-#ifndef GNRC_ICMPV6_H_
-#define GNRC_ICMPV6_H_
+#ifndef NET_GNRC_ICMPV6_H
+#define NET_GNRC_ICMPV6_H
 
-#include "kernel_types.h"
 #include "net/icmpv6.h"
+#include "net/gnrc/netif.h"
 #include "net/gnrc/pkt.h"
 
 #include "net/gnrc/icmpv6/echo.h"
@@ -41,10 +41,10 @@ extern "C" {
 /**
  * @brief   Demultiplexes a received ICMPv6 packet according to its type field.
  *
- * @param[in] iface     The receiving interface
+ * @param[in] netif     The receiving interface
  * @param[in] pkt       The packet to demultiplex.
  */
-void gnrc_icmpv6_demux(kernel_pid_t iface, gnrc_pktsnip_t *pkt);
+void gnrc_icmpv6_demux(gnrc_netif_t *netif, gnrc_pktsnip_t *pkt);
 
 /**
  * @brief   Builds an ICMPv6 message for sending.
@@ -79,7 +79,7 @@ int gnrc_icmpv6_calc_csum(gnrc_pktsnip_t *hdr, gnrc_pktsnip_t *pseudo_hdr);
 }
 #endif
 
-#endif /* GNRC_ICMPV6_H_ */
+#endif /* NET_GNRC_ICMPV6_H */
 /**
  * @}
  */

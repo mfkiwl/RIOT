@@ -7,7 +7,7 @@
  */
 
 /**
- * @defgroup    net_rpl_srh RPL source routing header extension
+ * @defgroup    net_gnrc_rpl_srh RPL source routing header extension
  * @ingroup     net_gnrc_rpl
  * @brief       Implementation of RPL source routing extension headers
  * @see <a href="https://tools.ietf.org/html/rfc6554">
@@ -20,19 +20,15 @@
  *
  * @author  Martine Lenders <mlenders@inf.fu-berlin.de>
  */
-#ifndef GNRC_RPL_SRH_H_
-#define GNRC_RPL_SRH_H_
+#ifndef NET_GNRC_RPL_SRH_H
+#define NET_GNRC_RPL_SRH_H
 
+#include "net/ipv6/hdr.h"
 #include "net/ipv6/addr.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-/**
- * @brief   Type for source routing header.
- */
-#define GNRC_RPL_SRH_TYPE   (3U)
 
 /**
  * @brief   The RPL Source routing header.
@@ -48,21 +44,34 @@ typedef struct __attribute__((packed)) {
     uint8_t len;        /**< length in 8 octets without first octet */
     uint8_t type;       /**< identifier of a particular routing header type */
     uint8_t seg_left;   /**< number of route segments remaining */
+    uint8_t compr;      /**< number of prefix octets (comprI and comprE) */
+    uint8_t pad_resv;   /**< padding and reserved */
+    uint16_t resv;      /**< reserved */
 } gnrc_rpl_srh_t;
 
 /**
- * @brief   Extract next hop from the RPL source routing header.
+ * @brief   Process the RPL source routing header.
  *
+ * @pre `rh->seq_left > 0`; The 0 case means the destination is reached and
+ *      common among all routing headers, so it should be handled by an
+ *      external routing header handler.
+ *
+ * @param[in, out] ipv6 The IPv6 header of the incoming packet.
  * @param[in] rh        A RPL source routing header.
+ * @param[out] err_ptr  A pointer to an erroneous octet within @p rh when
+ *                      return value is @ref GNRC_IPV6_EXT_RH_ERROR. For any
+ *                      other return value than @ref GNRC_IPV6_EXT_RH_ERROR the
+ *                      value of `err_ptr` is not defined.
  *
- * @return  next hop, on success
- * @return  NULL, if not found.
+ * @return  @ref GNRC_IPV6_EXT_RH_AT_DST, on success
+ * @return  @ref GNRC_IPV6_EXT_RH_FORWARDED, when @p pkt *should be* forwarded
+ * @return  @ref GNRC_IPV6_EXT_RH_ERROR, on error
  */
-ipv6_addr_t *gnrc_rpl_srh_next_hop(gnrc_rpl_srh_t *rh);
+int gnrc_rpl_srh_process(ipv6_hdr_t *ipv6, gnrc_rpl_srh_t *rh, void **err_ptr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* GNRC_RPL_SRH_H_ */
+#endif /* NET_GNRC_RPL_SRH_H */
 /** @} */

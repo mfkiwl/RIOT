@@ -11,6 +11,8 @@
  * @ingroup     sys
  * @brief       Global sensor/actuator registry for SAUL devices
  *
+ * @see @ref drivers_saul
+ *
  * @{
  *
  * @file
@@ -34,8 +36,8 @@ extern "C" {
 /**
  * @brief   SAUL registry entry
  */
-typedef struct saul_reg_t {
-    struct saul_reg_t *next;        /**< pointer to the next device */
+typedef struct saul_reg {
+    struct saul_reg *next;          /**< pointer to the next device */
     void *dev;                      /**< pointer to the device descriptor */
     const char *name;               /**< string identifier for the device */
     saul_driver_t const *driver;    /**< the devices read callback */
@@ -47,6 +49,11 @@ typedef struct saul_reg_t {
 typedef struct {
     const char *name;           /**< string identifier for a device */
 } saul_reg_info_t;
+
+/**
+ * @brief   Export the SAUL registry as global variable
+ */
+extern saul_reg_t *saul_reg;
 
 /**
  * @brief   Register a device with the SAUL registry
@@ -65,20 +72,22 @@ int saul_reg_add(saul_reg_t *dev);
 /**
  * @brief   Unregister a device from the SAUL registry
  *
+ * @warning   Removing the device at runtime can send applications that have
+ *            looked up that device into invalid states, and should thus be
+ *            avoided.
+ *
+ * @warning   This function must only be used by drivers that advise developers
+ *            using them on how to prevent race conditions when using SAUL.
+ *
+ * @deprecated This function will be removed soon as it is practically unusable
+ *             for the above reasons.
+ *
  * @param[in] dev       pointer to a registry entry
  *
  * @return      0 on success
  * @return      -ENODEV if device was not found in the registry
  */
 int saul_reg_rm(saul_reg_t *dev);
-
-/**
- * @brief   Get the first device from the list of registered devices
- *
- * @return      pointer to the first device in the list
- * @return      NULL if list is empty
- */
-saul_reg_t *saul_reg_get(void);
 
 /**
  * @brief   Find a device by it's position in the registry
@@ -129,7 +138,7 @@ int saul_reg_read(saul_reg_t *dev, phydat_t *res);
  * @param[in] dev       device to write to
  * @param[in] data      data to write to the device
  *
- * @return      the number of data elements read to @p res [1-3]
+ * @return      the number of data elements processed by the device
  * @return      -ENODEV if given device is invalid
  * @return      -ENOTSUP if read operation is not supported by the device
  * @return      -ECANCELED on device errors

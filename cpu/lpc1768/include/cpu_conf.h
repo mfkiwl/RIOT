@@ -15,13 +15,15 @@
  * @file
  * @brief           CPU specific configuration options
  *
- * @author          Hauke Petersen <hauke.peterse@fu-berlin.de>
+ * @author          Hauke Petersen <hauke.petersen@fu-berlin.de>
  */
 
-#ifndef __CPU_CONF_H
-#define __CPU_CONF_H
+#ifndef CPU_CONF_H
+#define CPU_CONF_H
 
-#include "LPC17xx.h"
+#include "cpu_conf_common.h"
+
+#include "vendor/LPC17xx.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,11 +36,19 @@ extern "C" {
 #define CPU_DEFAULT_IRQ_PRIO            (1U)
 #define CPU_IRQ_NUMOF                   (35U)
 #define CPU_FLASH_BASE                  LPC_FLASH_BASE
+#define CPU_HAS_BITBAND                 (1)
 /** @} */
+
+/**
+ * @brief   CPU ID configuration
+ * @{
+ */
+#define CPUID_LEN                       (16U)
+/* @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __CPU_CONF_H */
+#endif /* CPU_CONF_H */
 /** @} */

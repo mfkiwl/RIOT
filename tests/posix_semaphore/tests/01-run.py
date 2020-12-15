@@ -1,32 +1,26 @@
-#! /usr/bin/env python
-# -*- coding: utf-8 -*-
-# vim:fenc=utf-8
-#
-# Copyright (C) 2015 Martine Lenders <mlenders@inf.fu-berlin.de>
+#!/usr/bin/env python3
+
+# Copyright (C) 2016 Kaspar Schleiser <kaspar@schleiser.de>
 #
 # This file is subject to the terms and conditions of the GNU Lesser
 # General Public License v2.1. See the file LICENSE in the top level
 # directory for more details.
 
 import sys
-import pexpect
+from testrunner import run
 
-def init():
-    term = pexpect.spawn("make term", timeout=1.1)
-    term.logfile = sys.stdout
-    return term
 
-def test1(term):
+def _test1(term):
     term.expect_exact("######################### TEST1:")
     term.expect_exact("first: sem_init")
     term.expect_exact("first: thread create")
+    term.expect_exact("second: sem_trywait")
+    term.expect_exact("second: sem_trywait done with == 0")
+    term.expect_exact("second: wait for post")
     term.expect_exact("first: thread created")
     term.expect_exact("first: sem_getvalue")
     term.expect_exact("first: sem_getvalue != 0")
     term.expect_exact("first: do yield")
-    term.expect_exact("second: sem_trywait")
-    term.expect_exact("second: sem_trywait done with == 0")
-    term.expect_exact("second: wait for post")
     term.expect_exact("first: done yield")
     term.expect_exact("first: sem_trywait")
     term.expect_exact("first: sem_trywait FAILED")
@@ -38,7 +32,8 @@ def test1(term):
     term.expect_exact("first: sem_destroy")
     term.expect_exact("first: end")
 
-def test2(term):
+
+def _test2(term):
     term.expect_exact("######################### TEST2:")
     term.expect_exact("first: sem_init")
     term.expect_exact("first: thread create: 5")
@@ -68,7 +63,8 @@ def test2(term):
     term.expect_exact("Thread 'priority 5' woke up.")
     term.expect_exact("Back in main thread.")
 
-def test3(term):
+
+def _test3(term):
     term.expect_exact("######################### TEST3:")
     term.expect_exact("first: sem_init s1")
     term.expect_exact("first: sem_init s2")
@@ -84,17 +80,22 @@ def test3(term):
     term.expect_exact("post s1")
     term.expect_exact("Thread 2 woke up after waiting for s1.")
 
-def test4(term):
+
+def _test4(term):
     term.expect_exact("######################### TEST4:")
     term.expect_exact("first: sem_init s1")
     term.expect_exact("first: wait 1 sec for s1")
     term.expect_exact("first: timed out")
     term.expect(r"first: waited 1\d{6} usec")
 
+
+def testfunc(child):
+    _test1(child)
+    _test2(child)
+    _test3(child)
+    _test4(child)
+    child.expect("######################### DONE")
+
+
 if __name__ == "__main__":
-    TERM = init()
-    test1(TERM)
-    test2(TERM)
-    test3(TERM)
-    test4(TERM)
-    TERM.expect("######################### DONE")
+    sys.exit(run(testfunc))

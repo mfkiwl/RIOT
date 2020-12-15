@@ -7,7 +7,7 @@
  */
 
 /**
- * @addtogroup  core_util
+ * @ingroup     core_util
  * @{
  *
  * @file
@@ -16,21 +16,21 @@
  * @author      Kaspar Schleiser <kaspar@schleiser.de>
  */
 
-#ifndef QUEUE_H
-#define QUEUE_H
+#ifndef PRIORITY_QUEUE_H
+#define PRIORITY_QUEUE_H
 
 #include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
- extern "C" {
+extern "C" {
 #endif
 
 /**
  * @brief data type for priority queue nodes
  */
-typedef struct priority_queue_node_t {
-    struct priority_queue_node_t *next; /**< next queue node */
+typedef struct priority_queue_node {
+    struct priority_queue_node *next;   /**< next queue node */
     uint32_t priority;                  /**< queue node priority */
     unsigned int data;                  /**< queue node data */
 } priority_queue_node_t;
@@ -38,7 +38,7 @@ typedef struct priority_queue_node_t {
 /**
  * @brief data type for priority queues
  */
-typedef struct queue {
+typedef struct {
     priority_queue_node_t *first;        /**< first queue node */
 } priority_queue_t;
 
@@ -56,9 +56,10 @@ typedef struct queue {
  *          pre-allocated priority_queue_node_t object, must not be NULL.
  */
 static inline void priority_queue_node_init(
-        priority_queue_node_t *priority_queue_node)
+    priority_queue_node_t *priority_queue_node)
 {
     priority_queue_node_t qn = PRIORITY_QUEUE_NODE_INIT;
+
     *priority_queue_node = qn;
 }
 
@@ -78,6 +79,7 @@ static inline void priority_queue_node_init(
 static inline void priority_queue_init(priority_queue_t *priority_queue)
 {
     priority_queue_t q = PRIORITY_QUEUE_INIT;
+
     *priority_queue = q;
 }
 
@@ -132,4 +134,4 @@ void priority_queue_print_node(priority_queue_t *root);
 #endif
 
 /** @} */
-#endif /* QUEUE_H */
+#endif /* PRIORITY_QUEUE_H */

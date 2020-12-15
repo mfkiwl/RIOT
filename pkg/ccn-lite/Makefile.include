@@ -1,2 +1,7 @@
-INCLUDES += -I$(RIOTBASE)/pkg/ccn-lite -I$(RIOTBASE)/pkg/ccn-lite/ccn-lite/src
-INCLUDES += -I$(RIOTBASE)/sys/posix/include
+INCLUDES += -I$(PKGDIRBASE)/ccn-lite/src/ccnl-riot/include
+INCLUDES += -I$(PKGDIRBASE)/ccn-lite/src/ccnl-core/include
+INCLUDES += -I$(PKGDIRBASE)/ccn-lite/src/ccnl-pkt/include
+INCLUDES += -I$(PKGDIRBASE)/ccn-lite/src/ccnl-fwd/include
+
+CFLAGS += -DCCNL_RIOT
+ARCHIVES += $(BINDIR)/ccn-lite.a

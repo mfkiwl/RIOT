@@ -7,7 +7,7 @@
  *
  */
 
-/*
+/**
  * @ingroup     sys_shell_commands
  * @{
  *
@@ -19,6 +19,7 @@
  * @}
  */
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -44,7 +45,7 @@ static void probe(int num, saul_reg_t *dev)
 
 static void probe_all(void)
 {
-    saul_reg_t *dev = saul_reg_get();
+    saul_reg_t *dev = saul_reg;
     int i = 0;
 
     while (dev) {
@@ -56,7 +57,7 @@ static void probe_all(void)
 
 static void list(void)
 {
-    saul_reg_t *dev = saul_reg_get();
+    saul_reg_t *dev = saul_reg;
     int i = 0;
 
     if (dev) {
@@ -116,7 +117,7 @@ static void write(int argc, char **argv)
     memset(&data, 0, sizeof(data));
     dim = ((argc - 3) > (int)PHYDAT_DIM) ? (int)PHYDAT_DIM : (argc - 3);
     for (int i = 0; i < dim; i++) {
-        data.val[i] = (int16_t)atoi(argv[i + 3]);
+        data.val[i] = atoi(argv[i + 3]);
     }
     /* print values before writing */
     printf("Writing to device #%i - %s\n", num, dev->name);
@@ -140,7 +141,7 @@ int _saul(int argc, char **argv)
     if (argc < 2) {
         list();
     }
-    else if (argc >= 2) {
+    else {
         if (strcmp(argv[1], "read") == 0) {
             read(argc, argv);
         }

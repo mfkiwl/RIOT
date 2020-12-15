@@ -17,7 +17,6 @@
  */
 
 #include "thread.h"
-#include "kernel.h"
 #include "ringbuffer.h"
 #include "mutex.h"
 
@@ -107,7 +106,7 @@ static void *run_get(void *arg)
 
 static void tests_core_ringbuffer(void)
 {
-    pid_add = sched_active_pid;
+    pid_add = thread_getpid();
     pid_get = thread_create(stack_get, sizeof (stack_get),
                             THREAD_PRIORITY_MAIN,
                             THREAD_CREATE_SLEEPING | THREAD_CREATE_STACKTEST,
@@ -115,10 +114,50 @@ static void tests_core_ringbuffer(void)
     run_add();
 }
 
+static void tests_core_ringbuffer_remove(void)
+{
+    char mem[3];
+    ringbuffer_t buf;
+    ringbuffer_init(&buf, mem, sizeof(mem));
+
+    ringbuffer_add_one(&buf, 0);
+    ringbuffer_add_one(&buf, 1);
+    ringbuffer_add_one(&buf, 2);
+
+    ringbuffer_remove(&buf, 1);
+
+    TEST_ASSERT_EQUAL_INT(1, ringbuffer_get_one(&buf));
+    TEST_ASSERT_EQUAL_INT(2, ringbuffer_get_one(&buf));
+
+}
+
+static void tests_core_ringbuffer_remove_underflow(void)
+{
+    char mem[3];
+    ringbuffer_t buf;
+    ringbuffer_init(&buf, mem, sizeof(mem));
+
+    ringbuffer_add_one(&buf, 0);
+    ringbuffer_add_one(&buf, 1);
+
+    ringbuffer_remove(&buf, 2);
+    TEST_ASSERT_EQUAL_INT(1, ringbuffer_empty(&buf));
+
+    ringbuffer_add_one(&buf, 0);
+    ringbuffer_add_one(&buf, 1);
+
+    ringbuffer_remove(&buf,1);
+
+    TEST_ASSERT_EQUAL_INT(1, ringbuffer_get_one(&buf));
+    TEST_ASSERT_EQUAL_INT(1, ringbuffer_empty(&buf));
+}
+
 Test *tests_core_ringbuffer_tests(void)
 {
     EMB_UNIT_TESTFIXTURES(fixtures) {
         new_TestFixture(tests_core_ringbuffer),
+        new_TestFixture(tests_core_ringbuffer_remove),
+        new_TestFixture(tests_core_ringbuffer_remove_underflow),
     };
 
     EMB_UNIT_TESTCALLER(ringbuffer_tests, NULL, NULL, fixtures);

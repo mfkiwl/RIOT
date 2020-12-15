@@ -7,9 +7,7 @@
  */
 
 /**
- * @defgroup    boards_spark-core Spark-Core
- * @ingroup     boards
- * @brief       Board specific files for the spark-core board.
+ * @ingroup     boards_spark-core
  * @{
  *
  * @file
@@ -18,8 +16,8 @@
  * @author      Christian Mehlis <mehlis@inf.fu-berlin.de>
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#ifndef BOARD_H
+#define BOARD_H
 
 #include <stdint.h>
 
@@ -31,63 +29,54 @@
 #endif
 
 /**
- * @name Define the nominal CPU core clock in this board
+ * @name Tell the xtimer that we use a 16-bit peripheral timer
  */
-#define F_CPU               CLOCK_CORECLOCK
+#define XTIMER_WIDTH        (16)
 
 /**
- * @name Define the location of the RIOT image in flash
- */
-#define LOCATION_VTABLE     (0x08005000)
-
-/**
- * @name Define the UART to be used as stdio and its baudrate
+ * @name    Macros for controlling the on-board LEDs
  * @{
  */
-#define STDIO               UART_0
-#define STDIO_BAUDRATE      (115200)
-#define STDIO_RX_BUFSIZE    (64U)
-/** @} */
+#define LED0_PIN            GPIO_PIN(PORT_A, 9)
+#define LED1_PIN            GPIO_PIN(PORT_A, 10)
+#define LED2_PIN            GPIO_PIN(PORT_A, 8)
+#define LED3_PIN            GPIO_PIN(PORT_A, 13)
 
-/**
- * @name LED pin definitions
- * @{
- */
 #define LED_PORT            (GPIOA)
-#define LED_RED_PIN         (9)
-#define LED_GREEN_PIN       (10)
-#define LED_BLUE_PIN        (8)
-#define LED_WHITE_PIN       (13)
-/** @} */
+#define LED0_MASK           (1 << 9)
+#define LED1_MASK           (1 << 10)
+#define LED2_MASK           (1 << 8)
+#define LED3_MASK           (1 << 13)
 
-/**
- * @name Macros for controlling the on-board LEDs.
- * @{
- */
-#define LED_RED_ON          (LED_PORT->BRR = (1<<LED_RED_PIN))
-#define LED_RED_OFF         (LED_PORT->BSRR = (1<<LED_RED_PIN))
-#define LED_RED_TOGGLE      (LED_PORT->ODR ^= (1<<LED_RED_PIN))
-#define LED_GREEN_ON        (LED_PORT->BRR = (1<<LED_GREEN_PIN))
-#define LED_GREEN_OFF       (LED_PORT->BSRR = (1<<LED_GREEN_PIN))
-#define LED_GREEN_TOGGLE    (LED_PORT->ODR ^= (1<<LED_GREEN_PIN))
-#define LED_BLUE_ON         (LED_PORT->BRR = (1<<LED_BLUE_PIN))
-#define LED_BLUE_OFF        (LED_PORT->BSRR = (1<<LED_BLUE_PIN))
-#define LED_BLUE_TOGGLE     (LED_PORT->ODR ^= (1<<LED_BLUE_PIN))
-#define LED_WHITE_ON        (LED_PORT->BRR = (1<<LED_WHITE_PIN))
-#define LED_WHITE_OFF       (LED_PORT->BSRR = (1<<LED_WHITE_PIN))
-#define LED_WHITE_TOGGLE    (LED_PORT->ODR ^= (1<<LED_WHITE_PIN))
+#define LED0_ON             (LED_PORT->BRR  = LED0_MASK)
+#define LED0_OFF            (LED_PORT->BSRR = LED0_MASK)
+#define LED0_TOGGLE         (LED_PORT->ODR ^= LED0_MASK)
+
+#define LED1_ON             (LED_PORT->BRR  = LED1_MASK)
+#define LED1_OFF            (LED_PORT->BSRR = LED1_MASK)
+#define LED1_TOGGLE         (LED_PORT->ODR ^= LED1_MASK)
+
+#define LED2_ON             (LED_PORT->BRR  = LED2_MASK)
+#define LED2_OFF            (LED_PORT->BSRR = LED2_MASK)
+#define LED2_TOGGLE         (LED_PORT->ODR ^= LED2_MASK)
+
+#define LED3_ON             (LED_PORT->BRR  = LED3_MASK)
+#define LED3_OFF            (LED_PORT->BSRR = LED3_MASK)
+#define LED3_TOGGLE         (LED_PORT->ODR ^= LED3_MASK)
 /** @} */
 
 /**
  * @name User button configuration
+ * @{
  */
 #define BUTTON1             GPIO_PIN(PORT_B,2)
+/** @} */
 
 /**
  * @name CC3000 pin configuration
  * @{
  */
-#define CC3000_SPI          SPI_0
+#define CC3000_SPI          SPI_DEV(0)
 #define CC3000_CS           GPIO_PIN(PORT_B,12)
 #define CC3000_EN           GPIO_PIN(PORT_B,8)
 #define CC3000_INT          GPIO_PIN(PORT_B,11)
@@ -97,7 +86,7 @@
  * @name EXTFLASH pin configuration
  * @{
  */
-#define EXTFLASH_SPI        SPI_0
+#define EXTFLASH_SPI        SPI_DEV(0)
 #define EXTFLASH            GPIO_PIN(PORT_B,9)
 /** @} */
 
@@ -110,5 +99,5 @@ void board_init(void);
 } /* end extern "C" */
 #endif
 
-#endif /* BOARD_H_ */
+#endif /* BOARD_H */
 /** @} */

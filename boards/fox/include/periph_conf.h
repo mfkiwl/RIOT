@@ -16,156 +16,136 @@
  * @author      Thomas Eichinger <thomas.eichinger@fu-berlin.de>
  */
 
-#ifndef PERIPH_CONF_H_
-#define PERIPH_CONF_H_
+#ifndef PERIPH_CONF_H
+#define PERIPH_CONF_H
+
+/* This board provides an LSE */
+#ifndef CONFIG_BOARD_HAS_LSE
+#define CONFIG_BOARD_HAS_LSE    1
+#endif
+
+/* HSE is clocked at 16MHz */
+#ifndef CONFIG_BOARD_HAS_HSE
+#define CONFIG_BOARD_HAS_HSE    1
+#endif
+#define CLOCK_HSE               MHZ(16)
+
+#include "periph_cpu.h"
+#include "clk_conf.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
- * @name Clock system configuration
+ * @name    Timer configuration
  * @{
- **/
-#define CLOCK_HSE           (16000000U)             /* frequency of external oscillator */
-#define CLOCK_CORECLOCK     (72000000U)             /* targeted core clock frequency */
-/* configuration of PLL prescaler and multiply values */
-/* CORECLOCK := HSE / PLL_HSE_DIV * PLL_HSE_MUL */
-#define CLOCK_PLL_HSE_DIV   RCC_CFGR_PLLXTPRE_HSE_Div2
-#define CLOCK_PLL_HSE_MUL   RCC_CFGR_PLLMULL9
-/* configuration of peripheral bus clock prescalers */
-#define CLOCK_AHB_DIV       RCC_CFGR_HPRE_DIV1      /* AHB clock -> 72MHz */
-#define CLOCK_APB2_DIV      RCC_CFGR_PPRE2_DIV1     /* APB2 clock -> 72MHz */
-#define CLOCK_APB1_DIV      RCC_CFGR_PPRE1_DIV2     /* APB1 clock -> 36MHz */
-/* configuration of flash access cycles */
-#define CLOCK_FLASH_LATENCY FLASH_ACR_LATENCY_2
+ */
+static const timer_conf_t timer_config[] = {
+    {
+        .dev      = TIM2,
+        .max      = 0x0000ffff,
+        .rcc_mask = RCC_APB1ENR_TIM2EN,
+        .bus      = APB1,
+        .irqn     = TIM2_IRQn
+    },
+    {
+        .dev      = TIM3,
+        .max      = 0x0000ffff,
+        .rcc_mask = RCC_APB1ENR_TIM3EN,
+        .bus      = APB1,
+        .irqn     = TIM3_IRQn
+    }
+};
+
+#define TIMER_0_ISR         isr_tim2
+#define TIMER_1_ISR         isr_tim3
+
+#define TIMER_NUMOF         ARRAY_SIZE(timer_config)
 /** @} */
 
 /**
- * @brief Timer configuration
+ * @name    UART configuration
  * @{
  */
-#define TIMER_NUMOF         (2U)
-#define TIMER_0_EN          1
-#define TIMER_1_EN          1
+static const uart_conf_t uart_config[] = {
+    {
+        .dev      = USART2,
+        .rcc_mask = RCC_APB1ENR_USART2EN,
+        .rx_pin   = GPIO_PIN(PORT_A, 3),
+        .tx_pin   = GPIO_PIN(PORT_A, 2),
+        .bus      = APB1,
+        .irqn     = USART2_IRQn
+    },
+    {
+        .dev      = USART1,
+        .rcc_mask = RCC_APB2ENR_USART1EN,
+        .rx_pin   = GPIO_PIN(PORT_A, 10),
+        .tx_pin   = GPIO_PIN(PORT_A, 9),
+        .bus      = APB2,
+        .irqn     = USART1_IRQn
+    }
+};
 
-/* Timer 0 configuration */
-#define TIMER_0_DEV_0       TIM2
-#define TIMER_0_DEV_1       TIM3
-#define TIMER_0_CHANNELS    4
-#define TIMER_0_PRESCALER   (72U)
-#define TIMER_0_MAX_VALUE   (0xffff)
-#define TIMER_0_CLKEN()     (RCC->APB1ENR |= (RCC_APB1ENR_TIM2EN | RCC_APB1ENR_TIM3EN))
-#define TIMER_0_ISR_0       isr_tim2
-#define TIMER_0_ISR_1       isr_tim3
-#define TIMER_0_IRQ_CHAN_0  TIM2_IRQn
-#define TIMER_0_IRQ_CHAN_1  TIM3_IRQn
-#define TIMER_0_IRQ_PRIO    1
-#define TIMER_0_TRIG_SEL    TIM_SMCR_TS_0
+#define UART_0_ISR          (isr_usart2)
+#define UART_1_ISR          (isr_usart1)
 
-/* Timer 1 configuration */
-#define TIMER_1_DEV_0       TIM4
-#define TIMER_1_DEV_1       TIM5
-#define TIMER_1_CHANNELS    4
-#define TIMER_1_PRESCALER   (72U)
-#define TIMER_1_MAX_VALUE   (0xffff)
-#define TIMER_1_CLKEN()     (RCC->APB1ENR |= (RCC_APB1ENR_TIM4EN | RCC_APB1ENR_TIM5EN))
-#define TIMER_1_ISR_0       isr_tim4
-#define TIMER_1_ISR_1       isr_tim5
-#define TIMER_1_IRQ_CHAN_0  TIM4_IRQn
-#define TIMER_1_IRQ_CHAN_1  TIM5_IRQn
-#define TIMER_1_IRQ_PRIO    1
-#define TIMER_1_TRIG_SEL    TIM_SMCR_TS_1
+#define UART_NUMOF          ARRAY_SIZE(uart_config)
 /** @} */
 
 /**
- * @brief UART configuration
+ * @name    SPI configuration
  * @{
  */
-#define UART_NUMOF          (1U)
-#define UART_0_EN           1
-#define UART_1_EN           0
-#define UART_IRQ_PRIO       1
+static const spi_conf_t spi_config[] = {
+    {
+        .dev      = SPI2,
+        .mosi_pin = GPIO_PIN(PORT_B, 15),
+        .miso_pin = GPIO_PIN(PORT_B, 14),
+        .sclk_pin = GPIO_PIN(PORT_B, 13),
+        .cs_pin   = GPIO_UNDEF,
+        .rccmask  = RCC_APB1ENR_SPI2EN,
+        .apbbus   = APB1
+    }
+};
 
-/* UART 0 device configuration */
-#define UART_0_DEV          USART2
-#define UART_0_CLKEN()      (RCC->APB1ENR |= RCC_APB1ENR_USART2EN)
-#define UART_0_IRQ          USART2_IRQn
-#define UART_0_ISR          isr_usart2
-#define UART_0_BUS_FREQ     36000000
-/* UART 0 pin configuration */
-#define UART_0_RX_PIN       GPIO_PIN(PORT_A,3)
-#define UART_0_TX_PIN       GPIO_PIN(PORT_A,2)
-
-/* UART 1 device configuration */
-#define UART_1_DEV          USART1
-#define UART_1_CLKEN()      (RCC->APB2ENR |= RCC_APB2ENR_USART1EN)
-#define UART_1_IRQ          USART1_IRQn
-#define UART_1_ISR          isr_usart1
-#define UART_1_BUS_FREQ     72000000
-/* UART 1 pin configuration */
-#define UART_1_RX_PIN       GPIO_PIN(PORT_A,10)
-#define UART_1_TX_PIN       GPIO_PIN(PORT_A,9)
+#define SPI_NUMOF           ARRAY_SIZE(spi_config)
 /** @} */
 
 /**
- * @brief SPI configuration
+ * @name    Real time counter configuration
  * @{
  */
-#define SPI_NUMOF           (1U)
-#define SPI_0_EN            1
-
-/* SPI 0 device configuration */
-#define SPI_0_DEV           SPI2
-#define SPI_0_CLKEN()       (RCC->APB1ENR |= RCC_APB1ENR_SPI2EN)
-#define SPI_0_CLKDIS()      (RCC->APB1ENR &= ~(RCC_APB1ENR_SPI2EN))
-#define SPI_0_BUS_DIV       0   /* 1 -> SPI runs with full CPU clock, 0 -> half CPU clock */
-/* SPI 0 pin configuration */
-#define SPI_0_CLK_PIN       GPIO_PIN(PORT_B,13)
-#define SPI_0_MOSI_PIN      GPIO_PIN(PORT_B,15)
-#define SPI_0_MISO_PIN      GPIO_PIN(PORT_B,14)
-/** @} */
-
-/**
- * @name Real time counter configuration
- * @{
- */
-#define RTT_NUMOF           (1U)
-#define RTT_IRQ_PRIO        1
-
-#define RTT_DEV             RTC
-#define RTT_IRQ             RTC_IRQn
-#define RTT_ISR             isr_rtc
-#define RTT_MAX_VALUE       (0xffffffff)
+#ifndef RTT_FREQUENCY
 #define RTT_FREQUENCY       (1)             /* in Hz */
-#define RTT_PRESCALER       (0x7fff)        /* run with 1 Hz */
+#endif
 /** @} */
 
 /**
- * @name I2C configuration
+ * @name    I2C configuration
   * @{
  */
-#define I2C_NUMOF           (1U)
-#define I2C_0_EN            1
-#define I2C_IRQ_PRIO        1
-#define I2C_APBCLK          (36000000U)
+static const i2c_conf_t i2c_config[] = {
+    {
+        .dev            = I2C1,
+        .speed          = I2C_SPEED_NORMAL,
+        .scl_pin        = GPIO_PIN(PORT_B, 6),
+        .sda_pin        = GPIO_PIN(PORT_B, 7),
+        .bus            = APB1,
+        .rcc_mask       = RCC_APB1ENR_I2C1EN,
+        .clk            = CLOCK_APB1,
+        .irqn           = I2C1_EV_IRQn
+    }
+};
 
-/* I2C 0 device configuration */
-#define I2C_0_DEV           I2C1
-#define I2C_0_CLKEN()       (RCC->APB1ENR |= RCC_APB1ENR_I2C1EN)
-#define I2C_0_CLKDIS()      (RCC->APB1ENR &= ~(RCC_APB1ENR_I2C1EN))
-#define I2C_0_EVT_IRQ       I2C1_EV_IRQn
-#define I2C_0_EVT_ISR       isr_i2c1_ev
-#define I2C_0_ERR_IRQ       I2C1_ER_IRQn
-#define I2C_0_ERR_ISR       isr_i2c1_er
-/* I2C 0 pin configuration */
-#define I2C_0_SCL_PIN       GPIO_PIN(PORT_B,6)
-#define I2C_0_SDA_PIN       GPIO_PIN(PORT_B,7)
+#define I2C_0_ISR           isr_i2c1_ev
+
+#define I2C_NUMOF           ARRAY_SIZE(i2c_config)
 /** @} */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* PERIPH_CONF_H_ */
+#endif /* PERIPH_CONF_H */
 /** @} */
