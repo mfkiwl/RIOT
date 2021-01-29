@@ -73,12 +73,18 @@ typedef uint32_t gpio_t;
  * @brief   Macro for accessing GPIO pins
  * @{
  */
-#ifdef CPU_FAM_SAML11
-#define GPIO_PIN(x, y)      (((gpio_t)(&PORT_SEC->Group[x])) | y)
-#elif defined(PORT_IOBUS)   /* Use IOBUS access when available */
+#ifdef MODULE_PERIPH_GPIO_FAST_READ
+#ifdef PORT_IOBUS_SEC
+#define GPIO_PIN(x, y)      (((gpio_t)(&PORT_IOBUS_SEC->Group[x])) | y)
+#else /* Use IOBUS access when available */
 #define GPIO_PIN(x, y)      (((gpio_t)(&PORT_IOBUS->Group[x])) | y)
+#endif /* PORT_IOBUS_SEC */
+#else
+#ifdef PORT_SEC
+#define GPIO_PIN(x, y)      (((gpio_t)(&PORT_SEC->Group[x])) | y)
 #else
 #define GPIO_PIN(x, y)      (((gpio_t)(&PORT->Group[x])) | y)
+#endif /* PORT_IOBUS_SEC */
 #endif
 
 /**
@@ -843,6 +849,7 @@ typedef struct {
  */
 #define WDT_HAS_INIT                   (1)
 
+#if defined(REV_DMAC) || DOXYGEN
 /**
  * @name sam0 DMA peripheral
  * @{
@@ -1111,6 +1118,7 @@ void dma_wait(dma_t dma);
  */
 void dma_cancel(dma_t dma);
 /** @} */
+#endif /* REV_DMAC || DOXYGEN */
 
 /**
  * @name sam0 RTC Tamper Detection
