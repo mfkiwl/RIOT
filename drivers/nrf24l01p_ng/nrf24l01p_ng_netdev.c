@@ -26,9 +26,6 @@
 #include "kernel_defines.h"
 #include "iolist.h"
 #include "irq.h"
-#include "luid.h"
-#include "mutex.h"
-#include "net/eui64.h"
 #include "net/netdev.h"
 #include "xtimer.h"
 
@@ -196,12 +193,10 @@ static int _init(netdev_t *netdev)
     /* assign to pipe 0 the broadcast address*/
     nrf24l01p_ng_write_reg(dev, NRF24L01P_NG_REG_RX_ADDR_P0,
                            NRF24L01P_NG_ADDR_P0(dev), aw);
-    luid_get_lb(NRF24L01P_NG_ADDR_P1(dev), aw);
-     /* "The LSByte must be unique for all six pipes" [datasheet p.38] */
-    if (NRF24L01P_NG_ADDR_P1(dev)[aw - 1] == bc[aw - 1]) {
-        luid_get_lb(NRF24L01P_NG_ADDR_P1(dev), aw);
-    }
-    /* assign to pipe 0 the "main" listening address */
+    /* "The LSByte must be unique for all six pipes" [datasheet p.38] */
+    nrf24l01p_ng_eui_get(&dev->netdev, NRF24L01P_NG_ADDR_P1(dev));
+    assert(NRF24L01P_NG_ADDR_P1(dev)[aw - 1] != NRF24L01P_NG_ADDR_P0(dev)[aw - 1]);
+    /* assign to pipe 1 the "main" listening address */
     nrf24l01p_ng_write_reg(dev, NRF24L01P_NG_REG_RX_ADDR_P1,
                            NRF24L01P_NG_ADDR_P1(dev), aw);
     /* set the address width */
@@ -619,7 +614,7 @@ static int _set(netdev_t *netdev, netopt_t opt, const void *val, size_t len)
         case NETOPT_ADDRESS: {
             /* common address length for all pipes */
             assert(len == NRF24L01P_NG_ADDR_WIDTH);
-            int ret = nrf24l01p_ng_set_rx_address(dev, val, NRF24L01P_NG_P0);
+            int ret = nrf24l01p_ng_set_rx_address(dev, val, NRF24L01P_NG_P1);
             return ret ? ret : (int)len;
         } break;
         case NETOPT_CHANNEL: {

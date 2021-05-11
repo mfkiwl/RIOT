@@ -13,13 +13,14 @@ PSEUDOMODULES += can_pm
 PSEUDOMODULES += can_raw
 PSEUDOMODULES += ccn-lite-utils
 PSEUDOMODULES += cc2538_rf_obs_sig
+PSEUDOMODULES += cc2538_rf_netdev_legacy
 PSEUDOMODULES += conn_can_isotp_multi
 PSEUDOMODULES += cord_ep_standalone
 PSEUDOMODULES += core_%
 PSEUDOMODULES += cortexm_fpu
 PSEUDOMODULES += cortexm_svc
 PSEUDOMODULES += cpu_check_address
-PSEUDOMODULES += crypto_%	# crypto_aes or crypto_3des
+PSEUDOMODULES += dbgpin
 PSEUDOMODULES += devfs_%
 PSEUDOMODULES += dhcpv6_%
 PSEUDOMODULES += ecc_%
@@ -66,7 +67,6 @@ PSEUDOMODULES += gnrc_sock_check_reuse
 PSEUDOMODULES += gnrc_txtsnd
 PSEUDOMODULES += heap_cmd
 PSEUDOMODULES += i2c_scan
-PSEUDOMODULES += ieee802154_radio_hal
 PSEUDOMODULES += ieee802154_security
 PSEUDOMODULES += ieee802154_submac
 PSEUDOMODULES += ina3221_alerts
@@ -91,6 +91,11 @@ PSEUDOMODULES += netdev_layer
 PSEUDOMODULES += netdev_register
 PSEUDOMODULES += netstats
 PSEUDOMODULES += netstats_l2
+PSEUDOMODULES += netstats_neighbor_etx
+PSEUDOMODULES += netstats_neighbor_count
+PSEUDOMODULES += netstats_neighbor_rssi
+PSEUDOMODULES += netstats_neighbor_lqi
+PSEUDOMODULES += netstats_neighbor_tx_time
 PSEUDOMODULES += netstats_ipv6
 PSEUDOMODULES += netstats_rpl
 PSEUDOMODULES += nimble
@@ -99,6 +104,7 @@ PSEUDOMODULES += newlib
 PSEUDOMODULES += newlib_gnu_source
 PSEUDOMODULES += newlib_nano
 PSEUDOMODULES += nrf24l01p_ng_diagnostics
+PSEUDOMODULES += nrf802154_netdev_legacy
 PSEUDOMODULES += openthread
 PSEUDOMODULES += picolibc
 PSEUDOMODULES += picolibc_stdout_buffered
@@ -142,6 +148,7 @@ PSEUDOMODULES += stm32mp1_eng_mode
 PSEUDOMODULES += suit_transport_%
 PSEUDOMODULES += suit_storage_%
 PSEUDOMODULES += sys_bus_%
+PSEUDOMODULES += vdd_lc_filter_%
 PSEUDOMODULES += wakaama_objects_%
 PSEUDOMODULES += wifi_enterprise
 PSEUDOMODULES += xtimer_on_ztimer
@@ -198,6 +205,9 @@ PSEUDOMODULES += cc1100
 PSEUDOMODULES += cc1100e
 PSEUDOMODULES += cc1101
 
+# include variants of ds3231 drivers as pseudo modules
+PSEUDOMODULES += ds3231_int
+
 # interrupt variant of the HMC5883L driver
 PSEUDOMODULES += hmc5883l_int
 
@@ -226,6 +236,12 @@ PSEUDOMODULES += pn532_spi
 # include variants of sdp3x drivers as pseudo modules
 PSEUDOMODULES += sdp3x_irq
 
+# include variants of SX126X drivers and LLCC68 driver as pseudo modules
+PSEUDOMODULES += sx1261
+PSEUDOMODULES += sx1262
+PSEUDOMODULES += sx1268
+PSEUDOMODULES += llcc68
+
 # include variants of SX127X drivers as pseudo modules
 PSEUDOMODULES += sx1272
 PSEUDOMODULES += sx1276
@@ -245,6 +261,11 @@ PSEUDOMODULES += si7006
 PSEUDOMODULES += si7013
 PSEUDOMODULES += si7020
 PSEUDOMODULES += si7021
+PSEUDOMODULES += si7050
+PSEUDOMODULES += si7051
+PSEUDOMODULES += si7053
+PSEUDOMODULES += si7054
+PSEUDOMODULES += si7055
 
 #include variants of tmp00x drivers as pseudo modules
 PSEUDOMODULES += tmp006
@@ -284,6 +305,9 @@ PSEUDOMODULES += skald_eddystone
 # define optimized read function of DS18 driver as a pseudo module
 PSEUDOMODULES += ds18_optimized
 
+PSEUDOMODULES += crypto_aes_128
+PSEUDOMODULES += crypto_aes_192
+PSEUDOMODULES += crypto_aes_256
 # By using this pseudomodule, T tables will be precalculated.
 PSEUDOMODULES += crypto_aes_precalculated
 # This pseudomodule causes a loop in AES to be unrolled (more flash, less CPU)
@@ -299,5 +323,6 @@ NO_PSEUDOMODULES += auto_init_loramac
 NO_PSEUDOMODULES += auto_init_multimedia
 NO_PSEUDOMODULES += auto_init_security
 NO_PSEUDOMODULES += auto_init_usbus
+NO_PSEUDOMODULES += auto_init_screen
 
 # Packages may also add modules to PSEUDOMODULES in their `Makefile.include`.

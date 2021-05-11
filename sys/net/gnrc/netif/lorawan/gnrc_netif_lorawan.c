@@ -24,6 +24,7 @@
 #include "net/netdev.h"
 #include "net/lora.h"
 #include "net/loramac.h"
+#include "net/gnrc/lorawan/region.h"
 #include "net/gnrc/netreg.h"
 
 #define ENABLE_DEBUG 0
@@ -93,6 +94,10 @@ void gnrc_lorawan_mcps_indication(gnrc_lorawan_t *mac, mcps_indication_t *ind)
     gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, ind->data.pkt->iol_base,
                                           ind->data.pkt->iol_len,
                                           GNRC_NETTYPE_LORAWAN);
+    if (!pkt) {
+        DEBUG("gnrc_lorawan: mcps_indication: couldn't allocate pktbuf\n");
+        return;
+    }
 
     if (!gnrc_netapi_dispatch_receive(GNRC_NETTYPE_LORAWAN, ind->data.port,
                                       pkt)) {
@@ -347,6 +352,11 @@ static int _set(gnrc_netif_t *netif, const gnrc_netapi_opt_t *opt)
     switch (opt->opt) {
         case NETOPT_LORAWAN_DR:
             assert(opt->data_len == sizeof(uint8_t));
+            if (!gnrc_lorawan_validate_dr(*((uint8_t *)opt->data))) {
+                DEBUG("gnrc_netif_lorawan: Invalid datarate\n");
+                res = -EINVAL;
+                break;
+            }
             netif->lorawan.datarate = *((uint8_t *)opt->data);
             break;
         case NETOPT_LORAWAN_TX_PORT:

@@ -25,7 +25,7 @@ filter() {
 
 _annotate_diff() {
     if [ -n "$1" -a -n "$2" -a -n "$3" ]; then
-        github_annotate_error "$1" "$2" "Wrong header guard format:\n\n$3"
+        IFS="${OLD_IFS}" github_annotate_error "$1" "$2" "Wrong header guard format:\n\n$3"
     fi
 }
 
@@ -40,7 +40,9 @@ _headercheck() {
             echo "$OUT" | {
                 # see https://stackoverflow.com/a/30064493/11921757 for why we
                 # use a sub shell here
-                while read line; do
+                OLD_IFS="$IFS"      # store old separator to later restore it
+                IFS=''  # keep leading and trailing spaces
+                while read -r line; do
                     # file has no or broken header guard
                     if echo "$line" | grep -q '^.*: no / broken header guard$'; then
                         # this output comes outside of a diff, so reset diff parser
@@ -70,8 +72,18 @@ _headercheck() {
                                DIFF="--- $DIFFFILE\n+++ $DIFFFILE"
                            fi
                            DIFFLINE="$(echo "$line" | sed 's/@@ -\([0-9]\+\).*$/\1/')"
+                           # Parse
+                           # @@ -<DIFFLINE>,<DIFFOFFSET> ...
+                           DIFFOFFSET="$(echo "$line" |
+                               sed 's/@@ -[0-9]\+\(,\([0-9]\)\+\)\?.*$/\2/')"
+                           if [ -n "$DIFFOFFSET" ]; then
+                               # if there is a DIFFOFFSET, add it to
+                               # DIFFLINE. DIFFLINE starts at 1, so we
+                               # need to subtract 1 to not overshoot.
+                               DIFFLINE=$(( DIFFLINE + DIFFOFFSET - 1 ))
+                           fi
                         fi
-                        DIFF="$DIFF\n$line"
+                        DIFF="$DIFF\n$(echo "${line}"| sed 's/\\/\\\\/g' )"
                     fi
                 done
                 _annotate_diff "$DIFFFILE" "$DIFFLINE" "$DIFF"

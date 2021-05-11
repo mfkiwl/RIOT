@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2020 Otto-von-Gericke-Universität Magdeburg
+ * Copyright (C) 2020 Otto-von-Guericke-Universität Magdeburg
  *
  * This file is subject to the terms and conditions of the GNU Lesser
  * General Public License v2.1. See the file LICENSE in the top level
@@ -33,16 +33,19 @@
 extern "C" {
 #endif
 
-#if IS_USED(MODULE_IEEE802154_RADIO_HAL)
-#include "net/ieee802154/radio.h"
-#else
 /**
- * @brief   Forward declaration of an IEEE802.15.4 abstract security device
+ * @brief   Forward declaration of an IEEE 802.15.4 abstract security device
  */
 typedef struct ieee802154_sec_dev ieee802154_sec_dev_t;
 
 /**
  * @brief   Struct of security operations
+ *
+ * @note    A device can indicate that the fallback implementations should be
+ *          used by setting the corresponding member to `NULL`, or pointing to
+ *          @ref ieee802154_radio_cipher_ops, which does the same. Note that
+ *          @ref ieee802154_radio_cipher_ops is the default security operations
+ *          driver assigned when @ref ieee802154_sec_init is called.
  */
 typedef struct ieee802154_radio_cipher_ops {
     /**
@@ -85,7 +88,7 @@ typedef struct ieee802154_radio_cipher_ops {
 } ieee802154_radio_cipher_ops_t;
 
 /**
- * @brief IEEE802.15.4 security device descriptor
+ * @brief IEEE 802.15.4 security device descriptor
  */
 struct ieee802154_sec_dev {
     /**
@@ -97,16 +100,15 @@ struct ieee802154_sec_dev {
      */
     void *ctx;
 };
-#endif
 
-#if !defined(IEEE802154_DEFAULT_KEY) || defined(DOXYGEN)
+#if !defined(IEEE802154_SEC_DEFAULT_KEY) || defined(DOXYGEN)
 /**
  * @brief   AES key that is used in the test vectors from the specification
  *
  * @note    Predefine it yourself,
  *          if you want another key to be set up on initialization
  */
-#define IEEE802154_DEFAULT_KEY                  { 0xc0, 0xc1, 0xc2, 0xc3,   \
+#define IEEE802154_SEC_DEFAULT_KEY              { 0xc0, 0xc1, 0xc2, 0xc3,   \
                                                   0xc4, 0xc5, 0xc6, 0xc7,   \
                                                   0xc8, 0xc9, 0xca, 0xcb,   \
                                                   0xcc, 0xcd, 0xce, 0xcf }
@@ -125,68 +127,68 @@ struct ieee802154_sec_dev {
 /**
  * @brief   Maximum length of the security auxiliary header in bytes
  */
-#define IEEE802154_MAX_AUX_HDR_LEN              (14U)
+#define IEEE802154_SEC_MAX_AUX_HDR_LEN          (14U)
 
 /**
  * @brief   Maximum Size of IEEE 802.15.4 MAC
  */
-#define IEEE802154_MAC_SIZE                     (16U)
+#define IEEE802154_SEC_MAX_MAC_SIZE             (16U)
 
 /**
  * @brief   Mask to get security level bits
  */
-#define IEEE802154_SCF_SECLEVEL_MASK            (0x07)
+#define IEEE802154_SEC_SCF_SECLEVEL_MASK        (0x07)
 
 /**
  * @brief   Number of shifts to set/get security level bits
  */
-#define IEEE802154_SCF_SECLEVEL_SHIFT           (0)
+#define IEEE802154_SEC_SCF_SECLEVEL_SHIFT       (0)
 
 /**
  * @brief   Mask to get key mode bits
  */
-#define IEEE802154_SCF_KEYMODE_MASK             (0x18)
+#define IEEE802154_SEC_SCF_KEYMODE_MASK         (0x18)
 
 /**
  * @brief   Number of shifts to set/get key mode bits
  */
-#define IEEE802154_SCF_KEYMODE_SHIFT            (3)
+#define IEEE802154_SEC_SCF_KEYMODE_SHIFT        (3)
 
 /**
  * @brief    Security levels
  *
- * <em>IEEE802154_SCF_SECLEVEL_MIC*</em>:
+ * <em>IEEE802154_SEC_SCF_SECLEVEL_MIC*</em>:
  * A message integrity code (MIC), also known as MAC,
  * is used to prove authentication. The MIC covers the whole frame
  * i.e. header, auxiliary header, and frame payload.
  * The MIC is always encrypted, thus it must be decrypted by the receiver,
  * to be checked.
  *
- * <em>IEEE802154_SCF_SECLEVEL_ENC*</em>:
+ * <em>IEEE802154_SEC_SCF_SECLEVEL_ENC*</em>:
  * AES-128 in ECB mode is used to encrypt the payload of a frame to provide
  * confidentiality.
  *
- * <em>IEEE802154_SCF_SECLEVEL_ENC_MIC*</em>:
+ * <em>IEEE802154_SEC_SCF_SECLEVEL_ENC_MIC*</em>:
  * A combination of the two modes above is used to ensure
  * authentication and confidentiality.
  */
 typedef enum {
-    IEEE802154_SCF_SECLEVEL_NONE                = 0x00, /**< no security */
-    IEEE802154_SCF_SECLEVEL_MIC32               = 0x01, /**< 32 bit MIC */
-    IEEE802154_SCF_SECLEVEL_MIC64               = 0x02, /**< 64 bit MIC */
-    IEEE802154_SCF_SECLEVEL_MIC128              = 0x03, /**< 128 bit MIC */
-    IEEE802154_SCF_SECLEVEL_ENC                 = 0x04, /**< encryption */
-    IEEE802154_SCF_SECLEVEL_ENC_MIC32           = 0x05, /**< enc. + 32 bit MIC */
-    IEEE802154_SCF_SECLEVEL_ENC_MIC64           = 0x06, /**< enc. + 64 bit MIC (mandatory) */
-    IEEE802154_SCF_SECLEVEL_ENC_MIC128          = 0x07  /**< enc. + 128 bit MIC */
-} ieee802154_scf_seclevel_t;
+    IEEE802154_SEC_SCF_SECLEVEL_NONE            = 0x00, /**< no security */
+    IEEE802154_SEC_SCF_SECLEVEL_MIC32           = 0x01, /**< 32 bit MIC */
+    IEEE802154_SEC_SCF_SECLEVEL_MIC64           = 0x02, /**< 64 bit MIC */
+    IEEE802154_SEC_SCF_SECLEVEL_MIC128          = 0x03, /**< 128 bit MIC */
+    IEEE802154_SEC_SCF_SECLEVEL_ENC             = 0x04, /**< encryption */
+    IEEE802154_SEC_SCF_SECLEVEL_ENC_MIC32       = 0x05, /**< enc. + 32 bit MIC */
+    IEEE802154_SEC_SCF_SECLEVEL_ENC_MIC64       = 0x06, /**< enc. + 64 bit MIC (mandatory) */
+    IEEE802154_SEC_SCF_SECLEVEL_ENC_MIC128      = 0x07  /**< enc. + 128 bit MIC */
+} ieee802154_sec_scf_seclevel_t;
 
 /**
  * @brief   Key identifier modes
  *
  * The key identifier field in the auxiliary header
  * consists of the key source and the key index fields and is only present
- * if the key identifier mode is not IEEE802154_SCF_KEYMODE_IMPLICIT.
+ * if the key identifier mode is not IEEE802154_SEC_SCF_KEYMODE_IMPLICIT.
  * (see 9.4.3 in the spec.)
  *
  * +----------------+-------------+------------------+------------------------------------+
@@ -204,18 +206,18 @@ typedef enum {
  * |                |             |                  | short source address               |
  * |                |             |                  | of the originator of the frame.    |
  * +----------------+-------------+------------------+------------------------------------+
- * | HX_INDEX       | 8 bytes     | 1 byte           | The key can be determined          |
+ * | HW_INDEX       | 8 bytes     | 1 byte           | The key can be determined          |
  * |                |             |                  | from the key index and             |
  * |                |             |                  | the long address of the originator |
  * |                |             |                  | of the frame.                      |
  * +----------------+-------------+------------------+------------------------------------+
  */
 typedef enum {
-    IEEE802154_SCF_KEYMODE_IMPLICIT             = 0x00, /**< Key is determined implicitly */
-    IEEE802154_SCF_KEYMODE_INDEX                = 0x01, /**< Key is determined from key index */
-    IEEE802154_SCF_KEYMODE_SHORT_INDEX          = 0x02, /**< Key is determined from 4 byte key source and key index */
-    IEEE802154_SCF_KEYMODE_HW_INDEX             = 0x03  /**< Key is determined from 8 byte key source and key index */
-} ieee802154_scr_keymode_t;
+    IEEE802154_SEC_SCF_KEYMODE_IMPLICIT         = 0x00, /**< Key is determined implicitly */
+    IEEE802154_SEC_SCF_KEYMODE_INDEX            = 0x01, /**< Key is determined from key index */
+    IEEE802154_SEC_SCF_KEYMODE_SHORT_INDEX      = 0x02, /**< Key is determined from 4 byte key source and key index */
+    IEEE802154_SEC_SCF_KEYMODE_HW_INDEX         = 0x03  /**< Key is determined from 8 byte key source and key index */
+} ieee802154_sec_scf_keymode_t;
 
 /**
  * @brief   IEEE 802.15.4 security error codes
@@ -237,11 +239,11 @@ typedef struct ieee802154_sec_context {
      */
     cipher_t cipher;
     /**
-     * @brief   Security level IEEE802154_SCF_SECLEVEL_*
+     * @brief   Security level IEEE802154_SEC_SCF_SECLEVEL_*
      */
     uint8_t security_level;
     /**
-     * @brief   Key mode IEEE802154_SCF_KEYMODE_*
+     * @brief   Key mode IEEE802154_SEC_SCF_KEYMODE_*
      */
     uint8_t key_id_mode;
     /**
@@ -277,9 +279,9 @@ typedef struct __attribute__((packed)) {
      *  +--------+--------+--------+--------+--------+--------+--------+--------+
      *
      * security level:
-     * one of IEEE802154_SCF_SECLEVEL_*
+     * one of IEEE802154_SEC_SCF_SECLEVEL_*
      * key identifier mode:
-     * one of IEEE802154_SCF_KEY_*
+     * one of IEEE802154_SEC_SCF_KEY_*
      * frame counter suppression:
      * basically always zero because we do not support TSCH right now
      * ASN:
@@ -294,20 +296,20 @@ typedef struct __attribute__((packed)) {
      * @brief   key identifier (0 - 9 bytes) according to key id. mode
      */
     uint8_t key_id[];
-} ieee802154_aux_sec_t;
+} ieee802154_sec_aux_t;
 
 /**
- * @brief   Content of key_source if key mode is IEEE802154_SCF_KEYMODE_INDEX
+ * @brief   Content of key_source if key mode is IEEE802154_SEC_SCF_KEYMODE_INDEX
  */
 typedef struct __attribute__((packed)) {
     /**
      * @brief   Key index of key from originator, defined by key source
      */
     uint8_t key_index;
-} ieee802154_aux_sec_key_identifier_1_t;
+} ieee802154_sec_aux_key_identifier_1_t;
 
 /**
- * @brief   Content of key_source if key mode is IEEE802154_SCF_KEYMODE_SHORT_INDEX
+ * @brief   Content of key_source if key mode is IEEE802154_SEC_SCF_KEYMODE_SHORT_INDEX
  */
 typedef struct __attribute__((packed)) {
     /**
@@ -318,10 +320,10 @@ typedef struct __attribute__((packed)) {
      * @brief   Key index of key from originator, defined by key source
      */
     uint8_t key_index;
-} ieee802154_aux_sec_key_identifier_5_t;
+} ieee802154_sec_aux_key_identifier_5_t;
 
 /**
- * @brief   Content of key_source if key mode is IEEE802154_SCF_KEYMODE_HW_INDEX
+ * @brief   Content of key_source if key mode is IEEE802154_SEC_SCF_KEYMODE_HW_INDEX
  */
 typedef struct __attribute__((packed)) {
     /**
@@ -332,7 +334,7 @@ typedef struct __attribute__((packed)) {
      * @brief   Key index of key from originator, defined by key source
      */
     uint8_t key_index;
-} ieee802154_aux_sec_key_identifier_9_t;
+} ieee802154_sec_aux_key_identifier_9_t;
 
 /**
  * @brief   Format of 13 byte nonce
@@ -347,10 +349,10 @@ typedef struct __attribute__((packed)) {
      */
     uint32_t frame_counter;
     /**
-     * @brief   One of IEEE802154_SCF_SECLEVEL_*
+     * @brief   One of IEEE802154_SEC_SCF_SECLEVEL_*
      */
     uint8_t security_level;
-} ieee802154_ccm_nonce_t;
+} ieee802154_sec_ccm_nonce_t;
 
 /**
  * @brief   Format of 16 byte input block of CCM
@@ -363,18 +365,18 @@ typedef struct __attribute__((packed)) {
     /**
      * @brief   Nonce (Number that is only used once)
      */
-    ieee802154_ccm_nonce_t nonce;
+    ieee802154_sec_ccm_nonce_t nonce;
     /**
      * @brief   Either the length of the actual message (for CBC-MAC) or
      *          a block counter (for CTR)
      */
     uint16_t counter;
-} ieee802154_ccm_block_t;
+} ieee802154_sec_ccm_block_t;
 
 /**
  * @brief   Initialize IEEE 802.15.4 security context with default values
  *
- * @param[out]      ctx                     security context
+ * @param[out]      ctx                     IEEE 802.15.4 security context
  */
 void ieee802154_sec_init(ieee802154_sec_context_t *ctx);
 
@@ -406,7 +408,7 @@ int ieee802154_sec_encrypt_frame(ieee802154_sec_context_t *ctx,
  *
  * @param[in]       ctx                     IEEE 802.15.4 security context
  * @param[in]       frame_size              Size of received frame
- * @param[in]       header                  Poinzter to header, which is also the frame
+ * @param[in]       header                  Pointer to header, which is also the frame
  * @param[in, out]  header_size             in: Header size; out: Size of header and auxiliary header
  * @param[out]      payload                 Will point to the beginning of the payload
  * @param[out]      payload_size            Pointer to store the payload size
@@ -427,57 +429,7 @@ int ieee802154_sec_decrypt_frame(ieee802154_sec_context_t *ctx,
                                  const uint8_t *src_address);
 
 /**
- * @brief   Set the encryption key to be used for the next cipher operation
- *
- * This function should be the default callback operation to set the encryption key,
- * if a radio does not provide special hardware security features.
- *
- * @param[in] dev       Security device
- * @param[in] key       Key to be use for the next cipher operation
- * @param[in] key_size  Key size
- */
-void ieee802154_sec_set_key(ieee802154_sec_dev_t *dev,
-                            const uint8_t *key, uint8_t key_size);
-
-/**
- * @brief   Perform ECB block cipher for IEEE802154 security layer
- *
- * This function should be the default callback operation to perform ECB,
- * if a radio does not provide special hardware security features.
- *
- * @param[in] dev       Security device
- * @param[out] cipher   Output cipher blocks
- * @param[in] plain     Input plain blocks
- * @param[in] nblocks   Number of blocks
- */
-void ieee802154_sec_ecb(const ieee802154_sec_dev_t *dev,
-                        uint8_t *cipher,
-                        const uint8_t *plain,
-                        uint8_t nblocks);
-
-/**
- * @brief   Perform CBC block cipher for IEEE802154 security layer
- *          MIC computation
- *
- * This function should be the default callback operation to perform CBC,
- * if a radio does not provide special hardware security features.
- *
- * @param[in] dev       Security device
- * @param[out] cipher   Output cipher blocks
- * @param[in] iv        Initial vector
- * @param[in] plain     Input plain blocks
- * @param[in] nblocks   Number of blocks
- */
-void ieee802154_sec_cbc(const ieee802154_sec_dev_t *dev,
-                        uint8_t *cipher,
-                        uint8_t *iv,
-                        const uint8_t *plain,
-                        uint8_t nblocks);
-
-/**
- * @brief Implements @ref ieee802154_sec_set_key,
- *                   @ref ieee802154_sec_ecb,
- *                   @ref ieee802154_sec_cbc
+ * @brief Default descriptor that will fallback to default implementations
  */
 extern const ieee802154_radio_cipher_ops_t ieee802154_radio_cipher_ops;
 

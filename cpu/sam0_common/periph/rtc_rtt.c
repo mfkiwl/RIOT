@@ -84,6 +84,7 @@ static void _wait_syncbusy(void)
     }
 }
 
+#if defined(MODULE_PERIPH_RTC) || defined(MODULE_PERIPH_RTT)
 static void _read_req(void)
 {
 #ifdef RTC_READREQ_RREQ
@@ -91,6 +92,7 @@ static void _read_req(void)
     _wait_syncbusy();
 #endif
 }
+#endif
 
 static void _poweron(void)
 {
@@ -111,6 +113,7 @@ static bool _power_is_on(void)
 #endif
 }
 
+__attribute__((unused))
 static void _poweroff(void)
 {
 #ifdef MCLK
@@ -142,6 +145,7 @@ static inline void _rtt_reset(void)
 }
 
 #ifdef CPU_COMMON_SAMD21
+#ifdef MODULE_PERIPH_RTC
 static void _rtc_clock_setup(void)
 {
     /* Use 1024 Hz GCLK */
@@ -150,7 +154,9 @@ static void _rtc_clock_setup(void)
                       | GCLK_CLKCTRL_ID_RTC;
     while (GCLK->STATUS.bit.SYNCBUSY) {}
 }
+#endif /* MODULE_PERIPH_RTC */
 
+#ifdef MODULE_PERIPH_RTT
 static void _rtt_clock_setup(void)
 {
     /* Use 32 kHz GCLK */
@@ -159,9 +165,11 @@ static void _rtt_clock_setup(void)
                       | GCLK_CLKCTRL_ID_RTC;
     while (GCLK->STATUS.bit.SYNCBUSY) {}
 }
+#endif /* MODULE_PERIPH_RTT */
 
 #else /* CPU_COMMON_SAMD21 - Clock Setup */
 
+#ifdef MODULE_PERIPH_RTC
 static void _rtc_clock_setup(void)
 {
     /* RTC source clock is external oscillator at 1kHz */
@@ -182,7 +190,9 @@ static void _rtc_clock_setup(void)
 #error "No clock source for RTC selected. "
 #endif
 }
+#endif /* MODULE_PERIPH_RTC */
 
+#if defined(MODULE_PERIPH_RTT) || RTC_NUM_OF_TAMPERS
 static void _rtt_clock_setup(void)
 {
     /* RTC source clock is external oscillator at 32kHz */
@@ -202,8 +212,10 @@ static void _rtt_clock_setup(void)
 #error "No clock source for RTT selected. "
 #endif
 }
+#endif /* MODULE_PERIPH_RTT */
 #endif /* !CPU_COMMON_SAMD21 - Clock Setup */
 
+#ifdef MODULE_PERIPH_RTC
 static void _rtc_init(void)
 {
 #ifdef REG_RTC_MODE2_CTRLA
@@ -251,7 +263,9 @@ void rtc_init(void)
 
     NVIC_EnableIRQ(RTC_IRQn);
 }
+#endif /* MODULE_PERIPH_RTC */
 
+#ifdef MODULE_PERIPH_RTT
 void rtt_init(void)
 {
     _rtt_clock_setup();
@@ -277,10 +291,12 @@ void rtt_init(void)
 
     NVIC_EnableIRQ(RTC_IRQn);
 }
+#endif /* MODULE_PERIPH_RTT */
 
 #if RTC_NUM_OF_TAMPERS
 
 static rtc_state_t tamper_cb;
+static uint32_t tampctr;
 
 /* check if pin is a RTC tamper pin */
 static int _rtc_pin(gpio_t pin)
@@ -294,20 +310,32 @@ static int _rtc_pin(gpio_t pin)
     return -1;
 }
 
+static void _set_tampctrl(uint32_t reg)
+{
+    _rtc_set_enabled(0);
+    RTC->MODE0.TAMPCTRL.reg = reg;
+    _rtc_set_enabled(1);
+}
+
 void rtc_tamper_init(void)
 {
-    if (IS_ACTIVE(MODULE_PERIPH_RTC) ||
-        IS_ACTIVE(MODULE_PERIPH_RTT) ||
-        _power_is_on()) {
-        return;
+    DEBUG("tamper init\n");
+
+    /* configure RTC clock only if it is not already configured */
+    if (!IS_ACTIVE(MODULE_PERIPH_RTC) &&
+        !IS_ACTIVE(MODULE_PERIPH_RTT)) {
+
+        if (!_power_is_on()) {
+            _rtt_clock_setup();
+            _poweron();
+        }
+
+        /* disable all interrupt sources */
+        RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_MASK;
     }
 
-    _rtt_clock_setup();
-    _poweron();
-
-    /* disable all interrupt sources */
-    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_MASK;
-
+    /* disable old tamper events */
+    _set_tampctrl(0);
     NVIC_EnableIRQ(RTC_IRQn);
 }
 
@@ -319,19 +347,13 @@ int rtc_tamper_register(gpio_t pin, gpio_flank_t flank)
         return -1;
     }
 
-    /* TAMPCTRL is enable-protected */
-    _rtc_set_enabled(0);
-
-    RTC->MODE0.TAMPCTRL.reg |= RTC_TAMPCTRL_IN0ACT_WAKE << (2 * in);
+    tampctr |= RTC_TAMPCTRL_IN0ACT_WAKE << (2 * in);
 
     if (flank == GPIO_RISING) {
-        RTC->MODE0.TAMPCTRL.reg |= RTC_TAMPCTRL_TAMLVL0 << in;
+        tampctr |= RTC_TAMPCTRL_TAMLVL0 << in;
     } else if (flank == GPIO_FALLING) {
-        RTC->MODE0.TAMPCTRL.reg &= ~(RTC_TAMPCTRL_TAMLVL0 << in);
+        tampctr &= ~(RTC_TAMPCTRL_TAMLVL0 << in);
     }
-
-    /* enable the RTC again */
-    _rtc_set_enabled(1);
 
     return 0;
 }
@@ -341,7 +363,10 @@ void rtc_tamper_enable(void)
     DEBUG("enable tamper\n");
 
     /* clear tamper id */
-    RTC->MODE0.TAMPID.reg = 0xF;
+    RTC->MODE0.TAMPID.reg = 0x1F;
+
+    /* write TAMPCTRL register */
+    _set_tampctrl(tampctr);
 
     /* work around errata 2.17.4:
      * ignore the first tamper event on the rising edge */
@@ -374,45 +399,29 @@ void rtc_tamper_enable(void)
     DEBUG("tamper enabled\n");
 }
 
+uint8_t rtc_get_tamper_event(void)
+{
+    uint32_t ret = RTC->MODE0.TAMPID.reg;
+
+    /* clear tamper event */
+    RTC->MODE0.INTFLAG.reg = RTC_MODE0_INTFLAG_TAMPER;
+    RTC->MODE0.TAMPID.reg  = ret;
+
+    return ret & RTC_TAMPID_TAMPID_Msk;
+}
+
+uint8_t rtc_tamper_pin_mask(gpio_t pin)
+{
+    int idx = _rtc_pin(pin);
+    if (idx < 0) {
+        return 0;
+    }
+
+    return 1 << idx;
+}
 #endif /* RTC_NUM_OF_TAMPERS */
 
-void rtt_set_overflow_cb(rtt_cb_t cb, void *arg)
-{
-    /* clear overflow cb to avoid race while assigning */
-    rtt_clear_overflow_cb();
-
-    /* set callback variables */
-    overflow_cb.cb  = cb;
-    overflow_cb.arg = arg;
-
-    /* enable overflow interrupt */
-    RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_OVF;
-}
-void rtt_clear_overflow_cb(void)
-{
-    /* disable overflow interrupt */
-    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_OVF;
-}
-
-uint32_t rtt_get_counter(void)
-{
-    _wait_syncbusy();
-    _read_req();
-    return RTC->MODE0.COUNT.reg;
-}
-
-void rtt_set_counter(uint32_t count)
-{
-    RTC->MODE0.COUNT.reg = count;
-    _wait_syncbusy();
-}
-
-uint32_t rtt_get_alarm(void)
-{
-    _wait_syncbusy();
-    return RTC->MODE0.COMP[0].reg;
-}
-
+#ifdef MODULE_PERIPH_RTC
 int rtc_get_alarm(struct tm *time)
 {
     RTC_MODE2_ALARM_Type alarm;
@@ -515,6 +524,61 @@ int rtc_set_time(struct tm *time)
     return 0;
 }
 
+void rtc_clear_alarm(void)
+{
+    /* disable alarm interrupt */
+    RTC->MODE2.INTENCLR.reg = RTC_MODE2_INTENCLR_ALARM0;
+}
+
+void rtc_poweron(void)
+{
+    _poweron();
+}
+
+void rtc_poweroff(void)
+{
+    _poweroff();
+}
+#endif /* MODULE_PERIPH_RTC */
+
+#ifdef MODULE_PERIPH_RTT
+void rtt_set_overflow_cb(rtt_cb_t cb, void *arg)
+{
+    /* clear overflow cb to avoid race while assigning */
+    rtt_clear_overflow_cb();
+
+    /* set callback variables */
+    overflow_cb.cb  = cb;
+    overflow_cb.arg = arg;
+
+    /* enable overflow interrupt */
+    RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_OVF;
+}
+void rtt_clear_overflow_cb(void)
+{
+    /* disable overflow interrupt */
+    RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_OVF;
+}
+
+uint32_t rtt_get_counter(void)
+{
+    _wait_syncbusy();
+    _read_req();
+    return RTC->MODE0.COUNT.reg;
+}
+
+void rtt_set_counter(uint32_t count)
+{
+    RTC->MODE0.COUNT.reg = count;
+    _wait_syncbusy();
+}
+
+uint32_t rtt_get_alarm(void)
+{
+    _wait_syncbusy();
+    return RTC->MODE0.COMP[0].reg;
+}
+
 void rtt_set_alarm(uint32_t alarm, rtt_cb_t cb, void *arg)
 {
     /* disable interrupt to avoid race */
@@ -533,21 +597,10 @@ void rtt_set_alarm(uint32_t alarm, rtt_cb_t cb, void *arg)
     RTC->MODE0.INTENSET.reg = RTC_MODE0_INTENSET_CMP0;
 }
 
-void rtc_clear_alarm(void)
-{
-    /* disable alarm interrupt */
-    RTC->MODE2.INTENCLR.reg = RTC_MODE2_INTENCLR_ALARM0;
-}
-
 void rtt_clear_alarm(void)
 {
     /* disable compare interrupt */
     RTC->MODE0.INTENCLR.reg = RTC_MODE0_INTENCLR_CMP0;
-}
-
-void rtc_poweron(void)
-{
-    _poweron();
 }
 
 void rtt_poweron(void)
@@ -555,15 +608,11 @@ void rtt_poweron(void)
     _poweron();
 }
 
-void rtc_poweroff(void)
-{
-    _poweroff();
-}
-
 void rtt_poweroff(void)
 {
     _poweroff();
 }
+#endif /* MODULE_PERIPH_RTT */
 
 static void _isr_rtc(void)
 {

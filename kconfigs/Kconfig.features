@@ -52,6 +52,12 @@ config HAS_CPU_CHECK_ADDRESS
     help
         Indicates that address validity check is supported.
 
+config HAS_DBGPIN
+    bool
+    help
+        Indicates that a platform provides the neccessary initialization hooks
+        for the dbgpin module.
+
 config HAS_EMULATOR_RENODE
     bool
     help
@@ -93,6 +99,11 @@ config HAS_PERIPH_CAN
     bool
     help
         Indicates that a CAN peripheral is present.
+
+config HAS_PERIPH_CORETIMER
+    bool
+    help
+        Indicates that the CLINT timer can be used as timer peripheral
 
 config HAS_PERIPH_CPUID
     bool
@@ -241,10 +252,25 @@ config HAS_PERIPH_RTC
     help
         Indicates that an RTC peripheral is present.
 
+config HAS_PERIPH_RTC_MS
+    bool
+    help
+        Indicates that the RTC peripheral can provide sub-second timestamps.
+
 config HAS_PERIPH_RTT
     bool
     help
         Indicates that an RTT peripheral is present.
+
+config HAS_PERIPH_RTT_SET_COUNTER
+    bool
+    help
+        Indicates that the RTT peripheral implements rtt_set_counter().
+
+config HAS_PERIPH_RTT_OVERFLOW
+    bool
+    help
+        Indicates that the RTT provides an overflow callback.
 
 config HAS_PERIPH_SPI
     bool

@@ -9,6 +9,7 @@
 
 /.murdock                                   @kaspar030
 
+/boards/common/atxmega/                     @nandojve
 /boards/common/esp*/                        @gschorcht
 /boards/common/nrf*/                        @aabadie @haukepetersen
 /boards/common/nucleo*/                     @aabadie
@@ -34,11 +35,14 @@
 /boards/stk3*00/                            @basilfx
 /boards/openmote*/                          @MrKevinWeiss
 /boards/cc1352p-launchpad                   @luisan00
+/boards/atxmega*/                           @nandojve
 
 /core/                                      @kaspar030
 
 /cpu/arm7_common/                           @kaspar030 @maribu
+/cpu/avr8_common/                           @kYc0o @roberthartung @maribu @nandojve
 /cpu/atmega*/                               @kYc0o @roberthartung @maribu
+/cpu/atxmega/                               @nandojve
 /cpu/cc2538/                                @hexluthor @smlng @fjmolinas
 /cpu/cc26x0/                                @hexluthor @smlng
 /cpu/cc26x2_cc13x2/                         @hexluthor @smlng
@@ -59,7 +63,8 @@
 /cpu/saml1x/                                @dylad
 /cpu/saml21/                                @dylad
 /cpu/stm32*/                                @aabadie @fjmolinas @DipSwitch @vincent-d
-/cpu/*/periph/                              @MrKevinWeiss
+/cpu/stm32/periph/eth*                      @maribu
+/cpu/stm32/periph/ptp.c                     @maribu
 
 /doc/                                       @aabadie @jia200x
 
@@ -91,6 +96,7 @@
 /drivers/xbee/                              @haukepetersen @miri64
 /drivers/include/periph/                    @MrKevinWeiss
 /drivers/periph_common/                     @MrKevinWeiss
+/drivers/include/periph/ptp.h               @maribu
 
 /pkg/cryptoauthlib/                         @Einhornhool @PeterKietzmann
 /pkg/lua/                                   @jcarrano
@@ -109,8 +115,9 @@
 /sys/event/                                 @kaspar030
 /sys/evtimer/                               @kaspar030
 /sys/fmt/                                   @kaspar030
-/sys/net/application_layer/gcoap/           @haukepetersen @kb2ma
-/sys/net/application_layer/nanocoap/        @kaspar030 @haukepetersen @kb2ma
+/sys/net/application_layer/gcoap/           @haukepetersen @kb2ma @chrysn
+/sys/net/application_layer/nanocoap/        @kaspar030 @haukepetersen @kb2ma @chrysn
+/sys/include/net/sock*                      @maribu
 /sys/net/netif/                             @miri64 @jia200x
 /sys/net/gnrc/network_layer/                @miri64
 /sys/net/gnrc/transport_layer/tcp/          @brummer-simon @miri64
@@ -140,7 +147,6 @@
 /tests/unittests                            @miri64
 /tests/*/tests/*.py                         @miri64
 /tests/cpu_efm32_features/                  @basilfx
-/tests/periph*/                             @MrKevinWeiss
 
 # KConfig maintainers will be notified about all KConfig changes
 Kconfig                                     @leandrolanzieri @jia200x @cgundogan

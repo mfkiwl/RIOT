@@ -5,6 +5,9 @@ BOARD_INSUFFICIENT_MEMORY := \
     arduino-nano \
     arduino-uno \
     atmega328p \
+    atmega328p-xplained-mini \
+    atxmega-a1u-xpro \
+    bluepill-stm32f030c8 \
     i-nucleo-lrwan1 \
     mega-xplained \
     microduino-corerf \
@@ -29,4 +32,5 @@ BOARD_INSUFFICIENT_MEMORY := \
     wsn430-v1_3b \
     wsn430-v1_4 \
     z1 \
+    zigduino \
     #

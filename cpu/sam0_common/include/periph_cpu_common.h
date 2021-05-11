@@ -147,7 +147,7 @@ typedef enum {
     GPIO_MUX_F = 0x5,       /**< select peripheral function F */
     GPIO_MUX_G = 0x6,       /**< select peripheral function G */
     GPIO_MUX_H = 0x7,       /**< select peripheral function H */
-    GPIO_MUX_L = 0xb,
+    GPIO_MUX_L = 0xb,       /**< select peripheral function L */
 } gpio_mux_t;
 #endif
 
@@ -332,9 +332,9 @@ typedef struct {
  */
 typedef enum {
     SPI_PAD_MISO_0 = 0x0,       /**< use pad 0 for MISO line */
-    SPI_PAD_MISO_1 = 0x1,       /**< use pad 0 for MISO line */
-    SPI_PAD_MISO_2 = 0x2,       /**< use pad 0 for MISO line */
-    SPI_PAD_MISO_3 = 0x3,       /**< use pad 0 for MISO line */
+    SPI_PAD_MISO_1 = 0x1,       /**< use pad 1 for MISO line */
+    SPI_PAD_MISO_2 = 0x2,       /**< use pad 2 for MISO line */
+    SPI_PAD_MISO_3 = 0x3,       /**< use pad 3 for MISO line */
 } spi_misopad_t;
 
 /**
@@ -1144,6 +1144,27 @@ int rtc_tamper_register(gpio_t pin, gpio_flank_t flank);
  * @brief   Enable Tamper Detection IRQs
  */
 void rtc_tamper_enable(void);
+
+/**
+ * @brief   Get and clear the RTC tamper event that has woken the CPU
+ *          from Deep Sleep.
+ *
+ * @return  The set bits in the return value correspond to the tamper
+ *          pin index inside the @ref rtc_tamper_pins array.
+ */
+uint8_t rtc_get_tamper_event(void);
+
+/**
+ * @brief   Get the tamper event mask for a certain pin.
+ *          Can be used together with @ref rtc_get_tamper_event to
+ *          check which RTC  pin caused the tamper event.
+ *
+ * @param pin   Pin to query
+ *
+ * @return  Bit mask with the bit corresponding to @p pin set
+ *          0 if @p pin is no RTC tamper pin
+ */
+uint8_t rtc_tamper_pin_mask(gpio_t pin);
 /** @} */
 
 /**

@@ -3,7 +3,9 @@
         info-features-provided info-features-required \
         info-features-used \
         info-debug-variable-% info-toolchains-supported \
-        check-toolchain-supported
+        check-toolchain-supported \
+        info-programmers-supported \
+        #
 
 info-objsize:
 	@case "$(SORTROW)" in \
@@ -201,6 +203,9 @@ info-files:
 info-modules:
 	@for i in $(sort $(USEMODULE)); do echo $$i; done
 
+info-packages:
+	@for i in $(sort $(USEPKG)); do echo $$i; done
+
 info-cpu:
 	@echo $(CPU)
 
@@ -224,3 +229,6 @@ info-toolchains-supported:
 
 check-toolchain-supported:
 	@exit $(if $(filter $(TOOLCHAIN),$(filter-out $(TOOLCHAINS_BLACKLIST),$(TOOLCHAINS_SUPPORTED))),0,1)
+
+info-programmers-supported:
+	@echo $(sort $(PROGRAMMERS_SUPPORTED))

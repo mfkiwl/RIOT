@@ -125,8 +125,8 @@ static void _add_entry_to_list(ztimer_clock_t *clock, ztimer_base_t *entry)
 #ifdef MODULE_PM_LAYERED
     /* First timer on the clock's linked list */
     if (list->next == NULL &&
-        clock->required_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
-        pm_block(clock->required_pm_mode);
+        clock->block_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
+        pm_block(clock->block_pm_mode);
     }
 #endif
 
@@ -169,8 +169,10 @@ ztimer_now_t _ztimer_now_extend(ztimer_clock_t *clock)
     assert(clock->max_value);
     unsigned state = irq_disable();
     uint32_t lower_now = clock->ops->now(clock);
+
     DEBUG(
-        "ztimer_now() checkpoint=%" PRIu32 " lower_last=%" PRIu32 " lower_now=%" PRIu32 " diff=%" PRIu32 "\n",
+        "ztimer_now() checkpoint=%" PRIu32 " lower_last=%" PRIu32
+        " lower_now=%" PRIu32 " diff=%" PRIu32 "\n",
         (uint32_t)clock->checkpoint, clock->lower_last, lower_now,
         _add_modulo(lower_now, clock->lower_last, clock->max_value));
     clock->checkpoint += _add_modulo(lower_now, clock->lower_last,
@@ -178,6 +180,7 @@ ztimer_now_t _ztimer_now_extend(ztimer_clock_t *clock)
     clock->lower_last = lower_now;
     DEBUG("ztimer_now() returning %" PRIu32 "\n", (uint32_t)clock->checkpoint);
     ztimer_now_t now = clock->checkpoint;
+
     irq_restore(state);
     return now;
 }
@@ -257,8 +260,8 @@ static void _del_entry_from_list(ztimer_clock_t *clock, ztimer_base_t *entry)
 #ifdef MODULE_PM_LAYERED
     /* The last timer just got removed from the clock's linked list */
     if (clock->list.next == NULL &&
-        clock->required_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
-        pm_unblock(clock->required_pm_mode);
+        clock->block_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
+        pm_unblock(clock->block_pm_mode);
     }
 #endif
 }
@@ -273,10 +276,14 @@ static ztimer_t *_now_next(ztimer_clock_t *clock)
             /* The last timer just got removed from the clock's linked list */
             clock->last = NULL;
 #ifdef MODULE_PM_LAYERED
-            if (clock->required_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
-                pm_unblock(clock->required_pm_mode);
+            if (clock->block_pm_mode != ZTIMER_CLOCK_NO_REQUIRED_PM_MODE) {
+                pm_unblock(clock->block_pm_mode);
             }
 #endif
+        }
+        else {
+            /* reset next pointer so ztimer_is_set() works */
+            entry->next = NULL;
         }
         return (ztimer_t *)entry;
     }
