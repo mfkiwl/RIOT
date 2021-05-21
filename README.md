@@ -75,6 +75,30 @@ but not limited to:
 * Sigfox
 * LoRaWAN
 
+## GETTING RIOT
+
+The most convenient way to get RIOT is to clone it via Git
+
+```console
+$ git clone https://github.com/RIOT-OS/RIOT
+```
+
+this will ensure that you get all the newest features and bug fixes with the
+caveat of an ever changing work environment.
+
+If you prefer things more stable, you can download the source code of one of our
+quarter annual releases [via Github][releases] as ZIP file or tarball. You can
+also checkout a release in a cloned Git repository using
+
+```console
+$ git pull --tags
+$ git checkout <YYYY.MM>
+```
+
+For more details on our release cycle, check our [documentation][release cycle].
+
+[releases]: https://github.com/RIOT-OS/RIOT/releases
+[release cycle]: https://doc.riot-os.org/release-cycle.html
 
 ## GETTING STARTED
 * You want to start the RIOT? Just follow our
@@ -100,8 +124,6 @@ To contribute something to RIOT, please refer to our
 [contributing document](CONTRIBUTING.md).
 
 ## MAILING LISTS
-* RIOT OS kernel developers list: [devel@riot-os.org](https://lists.riot-os.org/mailman/listinfo/devel)
-* RIOT OS users list: [users@riot-os.org](https://lists.riot-os.org/mailman/listinfo/users)
 * RIOT commits: [commits@riot-os.org](https://lists.riot-os.org/mailman/listinfo/commits)
 * Github notifications: [notifications@riot-os.org](https://lists.riot-os.org/mailman/listinfo/notifications)
 
