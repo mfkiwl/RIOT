@@ -364,20 +364,32 @@ static int _on_l2cap_server_evt(struct ble_l2cap_event *event, void *arg)
             conn = nimble_netif_conn_get(handle);
             assert(conn);
 
+            /* in the unlikely event the L2CAP connection establishment fails,
+             * we close the GAP connection */
             if (event->connect.status != 0) {
-                /* in the unlikely event the L2CAP connection establishment
-                 * fails, we close the GAP connection */
                 ble_gap_terminate(conn->gaphandle, BLE_ERR_REM_USER_CONN_TERM);
                 break;
             }
+
+            /* we need to update the state to keep everything in sync */
             conn->coc = event->connect.chan;
             conn->state |= NIMBLE_NETIF_L2CAP_SERVER;
             conn->state &= ~(NIMBLE_NETIF_ADV | NIMBLE_NETIF_CONNECTING);
+
+            /* in case conn itvl spacing is enabled, make sure that the conn
+             * itvl of the new connection is sufficiently spaced */
+            if ((NIMBLE_NETIF_CONN_ITVL_SPACING > 0) &&
+                nimble_netif_conn_itvl_used(conn->itvl, handle)) {
+                ble_gap_terminate(conn->gaphandle, BLE_ERR_REM_USER_CONN_TERM);
+                break;
+            }
+
             _notify(handle, NIMBLE_NETIF_CONNECTED_SLAVE, conn->addr);
             break;
         case BLE_L2CAP_EVENT_COC_DISCONNECTED:
             conn = nimble_netif_conn_from_gaphandle(event->disconnect.conn_handle);
             assert(conn && (conn->state & NIMBLE_NETIF_L2CAP_SERVER));
+            conn->coc = NULL;
             conn->state &= ~NIMBLE_NETIF_L2CAP_CONNECTED;
             break;
         case BLE_L2CAP_EVENT_COC_ACCEPT: {
@@ -411,7 +423,19 @@ static void _on_gap_connected(nimble_netif_conn_t *conn, uint16_t conn_handle)
     (void)res;
 
     conn->gaphandle = conn_handle;
+    conn->itvl = desc.conn_itvl;
     bluetil_addr_swapped_cp(desc.peer_id_addr.val, conn->addr);
+}
+
+static void _on_gap_param_update(int handle, nimble_netif_conn_t *conn)
+{
+    struct ble_gap_conn_desc desc;
+    int res = ble_gap_conn_find(conn->gaphandle, &desc);
+    assert(res == 0) ;
+    (void)res;
+
+    conn->itvl = desc.conn_itvl;
+    _notify(handle, NIMBLE_NETIF_CONN_UPDATED, conn->addr);
 }
 
 static int _on_gap_master_evt(struct ble_gap_event *event, void *arg)
@@ -458,7 +482,7 @@ static int _on_gap_master_evt(struct ble_gap_event *event, void *arg)
             break;
         }
         case BLE_GAP_EVENT_CONN_UPDATE:
-            _notify(handle, NIMBLE_NETIF_CONN_UPDATED, conn->addr);
+            _on_gap_param_update(handle, conn);
             break;
         case BLE_GAP_EVENT_CONN_UPDATE_REQ:
         case BLE_GAP_EVENT_MTU:
@@ -502,7 +526,7 @@ static int _on_gap_slave_evt(struct ble_gap_event *event, void *arg)
             break;
         }
         case BLE_GAP_EVENT_CONN_UPDATE:
-            _notify(handle, NIMBLE_NETIF_CONN_UPDATED, conn->addr);
+            _on_gap_param_update(handle, conn);
             break;
         case BLE_GAP_EVENT_CONN_UPDATE_REQ:
             /* nothing to do here */
@@ -537,11 +561,14 @@ void nimble_netif_eventcb(nimble_netif_eventcb_t cb)
 }
 
 int nimble_netif_connect(const ble_addr_t *addr,
-                         const struct ble_gap_conn_params *conn_params,
+                         struct ble_gap_conn_params *conn_params,
                          uint32_t timeout)
 {
     assert(addr);
     assert(_eventcb);
+
+    uint16_t itvl_min = 0;
+    uint16_t itvl_max = 0;
 
     /* the netif_conn module expects addresses in network byte order */
     uint8_t addrn[BLE_ADDR_LEN];
@@ -559,10 +586,30 @@ int nimble_netif_connect(const ble_addr_t *addr,
         return NIMBLE_NETIF_NOMEM;
     }
 
+    if ((conn_params != NULL)
+        && (conn_params->itvl_min != conn_params->itvl_max)) {
+        /* we need to save the min/max intervals in order to restore them
+         * later on */
+        itvl_min = conn_params->itvl_min;
+        itvl_max = conn_params->itvl_max;
+
+        uint16_t itvl = nimble_netif_conn_gen_itvl(itvl_min, itvl_max);
+        if (itvl == 0) {
+            return NIMBLE_NETIF_NOTFOUND;
+        }
+        conn_params->itvl_min = itvl;
+        conn_params->itvl_max = itvl;
+    }
+
     int res = ble_gap_connect(nimble_riot_own_addr_type, addr, timeout,
                               conn_params, _on_gap_master_evt, (void *)handle);
     assert(res == 0);
     (void)res;
+
+    if (itvl_min != itvl_max) {
+        conn_params->itvl_min = itvl_min;
+        conn_params->itvl_max = itvl_max;
+    }
 
     _notify(handle, NIMBLE_NETIF_INIT_MASTER, addrn);
 

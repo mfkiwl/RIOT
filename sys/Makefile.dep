@@ -6,10 +6,10 @@ ifneq (,$(filter arduino,$(USEMODULE)))
   FEATURES_REQUIRED += cpp
   FEATURES_REQUIRED += periph_gpio
   FEATURES_REQUIRED += periph_uart
-  SKETCH_MODULE ?= arduino_sketches
-  USEMODULE += $(SKETCH_MODULE)
+  USEMODULE += arduino_sketches
   USEMODULE += fmt
-  USEMODULE += xtimer
+  USEMODULE += ztimer_usec
+  USEMODULE += ztimer_msec
 endif
 
 ifneq (,$(filter arduino_pwm,$(FEATURES_USED)))
@@ -101,6 +101,9 @@ ifneq (,$(filter dhcpv6_client,$(USEMODULE)))
   USEMODULE += event
   USEMODULE += random
   USEMODULE += xtimer
+  ifneq (,$(filter sock_dns,$(USEMODULE)))
+    USEMODULE += dhcpv6_client_dns
+  endif
 endif
 
 ifneq (,$(filter fuzzing,$(USEMODULE)))
@@ -142,7 +145,9 @@ endif
 
 ifneq (,$(filter trickle,$(USEMODULE)))
   USEMODULE += random
-  USEMODULE += xtimer
+  ifeq (,$(filter ztimer_msec,$(USEMODULE)))
+    USEMODULE += xtimer
+  endif
 endif
 
 ifneq (,$(filter eui_provider,$(USEMODULE)))
@@ -257,6 +262,10 @@ ifneq (,$(filter shell_commands,$(USEMODULE)))
     USEMODULE += netif
     USEMODULE += ipv6_addr
   endif
+
+  ifneq (,$(filter gnrc_lorawan,$(USEMODULE)))
+    USEMODULE += gnrc_netif_cmd_lora
+  endif
 endif
 
 ifneq (,$(filter posix_semaphore,$(USEMODULE)))
@@ -267,9 +276,6 @@ endif
 
 ifneq (,$(filter posix_sleep,$(USEMODULE)))
   USEMODULE += ztimer_msec
-  ifneq (,$(filter periph_rtt,$(USEMODULE)))
-    USEMODULE += ztimer_periph_rtt
-  endif
   USEMODULE += ztimer_usec
   USEMODULE += posix_headers
 endif
@@ -474,8 +480,21 @@ ifneq (,$(filter event_thread_%,$(USEMODULE)))
   USEMODULE += event_thread
 endif
 
+ifneq (,$(filter event_timeout_ztimer,$(USEMODULE)))
+  USEMODULE += event_timeout
+endif
+
+ifneq (,$(filter event_periodic_timeout,$(USEMODULE)))
+  USEMODULE += event_timeout
+  USEMODULE += ztimer_periodic
+endif
+
 ifneq (,$(filter event_timeout,$(USEMODULE)))
-  USEMODULE += xtimer
+  ifneq (,$(filter event_timeout_ztimer,$(USEMODULE)))
+    USEMODULE += ztimer_usec
+  else
+    USEMODULE += xtimer
+  endif
 endif
 
 ifneq (,$(filter event,$(USEMODULE)))
@@ -484,6 +503,15 @@ endif
 
 ifneq (,$(filter l2filter_%,$(USEMODULE)))
   USEMODULE += l2filter
+endif
+
+ifneq (,$(filter gcoap_dtls,$(USEMODULE)))
+  USEMODULE += gcoap
+  USEMODULE += dsm
+  USEMODULE += sock_async_event
+  USEMODULE += sock_dtls
+  USEMODULE += event_thread
+  USEMODULE += event_timeout
 endif
 
 ifneq (,$(filter gcoap,$(USEMODULE)))
@@ -524,9 +552,6 @@ ifneq (,$(filter skald,$(USEMODULE)))
   USEMODULE += nrfble
   USEMODULE += random
   USEMODULE += ztimer_msec
-   ifneq (,$(filter periph_rtt,$(USEMODULE)))
-    USEMODULE += ztimer_periph_rtt
-  endif
 endif
 
 ifneq (,$(filter bluetil_addr,$(USEMODULE)))
@@ -639,16 +664,6 @@ ifneq (,$(filter suit,$(USEMODULE)))
   ifeq (,$(filter libcose_crypt_%,$(USEMODULE)))
     USEMODULE += libcose_crypt_c25519
   endif
-
-  # tests/suit_manifest has some mock implementations,
-  # only add the non-mock dependencies if not building that test.
-  ifeq (,$(filter suit_transport_mock,$(USEMODULE)))
-    # SUIT depends on riotboot support and some extra riotboot modules
-    FEATURES_REQUIRED += riotboot
-    USEMODULE += riotboot_slot
-    USEMODULE += riotboot_flashwrite
-    USEMODULE += riotboot_flashwrite_verify_sha256
-  endif
 endif
 
 ifneq (,$(filter suit_transport_%, $(USEMODULE)))
@@ -661,6 +676,13 @@ endif
 
 ifneq (,$(filter suit_storage_%, $(USEMODULE)))
   USEMODULE += suit_storage
+endif
+
+ifneq (,$(filter suit_storage_flashwrite, $(USEMODULE)))
+  FEATURES_REQUIRED += riotboot
+  USEMODULE += riotboot_slot
+  USEMODULE += riotboot_flashwrite
+  USEMODULE += riotboot_flashwrite_verify_sha256
 endif
 
 ifneq (,$(filter suit_%,$(USEMODULE)))

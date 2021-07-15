@@ -29,14 +29,9 @@
 #include "net/ieee802154.h"
 #include "kernel_defines.h"
 
-#if !IS_USED(MODULE_CC2538_RF_NETDEV_LEGACY)
 #include "net/ieee802154/radio.h"
 #if IS_USED(MODULE_NETDEV_IEEE802154_SUBMAC)
 #include "net/netdev/ieee802154_submac.h"
-#endif
-#else
-#include "net/netdev.h"
-#include "net/netdev/ieee802154.h"
 #endif
 
 #include "net/netopt.h"
@@ -107,7 +102,10 @@ extern "C" {
 #define CC2538_RSSI_OFFSET          (-73)  /**< Signal strength offset value */
 #define CC2538_RF_SENSITIVITY       (-97)  /**< dBm typical, normal conditions */
 
+#define CC2538_ACCEPT_FT_0_BEACON        (1 << 3) /**< enable or disable the BEACON filter */
+#define CC2538_ACCEPT_FT_1_DATA          (1 << 4) /**< enable or disable the DATA filter */
 #define CC2538_ACCEPT_FT_2_ACK           (1 << 5) /**< enable or disable the ACK filter */
+#define CC2538_ACCEPT_FT_3_CMD           (1 << 6) /**< enable or disable the CMD filter */
 #define CC2538_STATE_SFD_WAIT_RANGE_MIN  (0x03U)  /**< min range value of SFD wait state */
 #define CC2538_STATE_SFD_WAIT_RANGE_MAX  (0x06U)  /**< max range value of SFD wait state */
 #define CC2538_FRMCTRL1_PENDING_OR_MASK  (0x04)   /**< mask for enabling or disabling the
@@ -292,8 +290,6 @@ enum {
 typedef struct {
 #if IS_USED(MODULE_NETDEV_IEEE802154_SUBMAC)
     netdev_ieee802154_submac_t netdev;   /**< netdev parent struct */
-#elif IS_USED(MODULE_CC2538_RF_NETDEV_LEGACY)
-    netdev_ieee802154_t netdev;   /**< netdev parent struct */
 #endif
     uint8_t state;                /**< current state of the radio */
 } cc2538_rf_t;

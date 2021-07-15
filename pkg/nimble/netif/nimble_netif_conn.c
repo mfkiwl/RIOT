@@ -21,6 +21,7 @@
 #include <assert.h>
 
 #include "nimble_netif_conn.h"
+#include "random.h"
 
 #define ENABLE_DEBUG            0
 #include "debug.h"
@@ -219,4 +220,56 @@ unsigned nimble_netif_conn_count(uint16_t filter)
     mutex_unlock(&_lock);
 
     return cnt;
+}
+
+uint16_t nimble_netif_conn_get_itvl_ms(int handle)
+{
+    if ((handle == 0) || (handle >= CONN_CNT)) {
+        return 0;
+    }
+
+    return ((_conn[handle].itvl * BLE_HCI_CONN_ITVL) / 1000);
+}
+
+bool nimble_netif_conn_itvl_used(uint16_t itvl, int skip_handle)
+{
+    for (int handle = 0; handle < CONN_CNT; handle++) {
+        if ((handle != skip_handle) && (_conn[handle].itvl != 0)) {
+            uint16_t diff = (_conn[handle].itvl < itvl)
+                                                    ? itvl - _conn[handle].itvl
+                                                    : _conn[handle].itvl - itvl;
+            if (diff < NIMBLE_NETIF_CONN_ITVL_SPACING) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+uint16_t nimble_netif_conn_gen_itvl(uint16_t min, uint16_t max)
+{
+    assert(min <= max);
+
+    uint16_t start = random_uint32_range(min, max);
+
+    if (NIMBLE_NETIF_CONN_ITVL_SPACING == 0) {
+        return start;
+    }
+
+    for (uint16_t itvl = start;
+         itvl <= max;
+         itvl += NIMBLE_NETIF_CONN_ITVL_SPACING) {
+        if (!nimble_netif_conn_itvl_used(itvl, NIMBLE_NETIF_CONN_INVALID)) {
+            return itvl;
+        }
+    }
+    for (uint16_t itvl = start - NIMBLE_NETIF_CONN_ITVL_SPACING;
+         itvl >= min;
+         itvl -= NIMBLE_NETIF_CONN_ITVL_SPACING) {
+        if (!nimble_netif_conn_itvl_used(itvl, NIMBLE_NETIF_CONN_INVALID)) {
+            return itvl;
+        }
+    }
+    return 0;
 }

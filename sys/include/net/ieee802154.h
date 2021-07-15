@@ -302,6 +302,13 @@ extern const uint8_t ieee802154_addr_bcast[IEEE802154_ADDR_BCAST_LEN];
 #endif
 
 /**
+ * @brief Disable Auto ACK support
+ */
+#ifdef DOXYGEN
+#define CONFIG_IEEE802154_AUTO_ACK_DISABLE 0
+#endif
+
+/**
  * @brief   Initializes an IEEE 802.15.4 MAC frame header in @p buf.
  *
  * @pre Resulting header must fit in memory allocated at @p buf.
@@ -388,6 +395,25 @@ int ieee802154_get_src(const uint8_t *mhr, uint8_t *src, le_uint16_t *src_pan);
  * @return  -EINVAL, if @p mhr contains unexpected flags.
  */
 int ieee802154_get_dst(const uint8_t *mhr, uint8_t *dst, le_uint16_t *dst_pan);
+
+/**
+ * @brief  Check whether a frame pass the IEEE 802.15.4 frame filter.
+ *
+ * A frame passes the frame filter only if:
+ * - The PAN ID matches the PAN ID of the frame filter or the broadcast PAN ID
+ * - Either the Short or Extended Address matches the frame filter OR the
+ *   Short Address is the broadcast address.
+ *
+ * @param[in] mhr           MAC header (PSDU)
+ * @param[in] pan           PAN ID of the frame filter.
+ * @param[in] short_addr    Short Address of the frame filter.
+ * @param[in] ext_addr      Extended Address of the frame filter.
+ *
+ * @return 0            if frame passes the frame filter.
+ * @return 1            if frame doesn't pass the frame filter.
+ */
+int ieee802154_dst_filter(const uint8_t *mhr, uint16_t pan,
+                          network_uint16_t short_addr, const eui64_t *ext_addr);
 
 /**
  * @brief   Gets sequence number from MAC header.
